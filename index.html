@@ -1,0 +1,35 @@
+<!doctype html><html lang="ru"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1"><title>Vadalex Access — Console</title><link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/@tabler/icons-webfont@3.31.0/tabler-icons.min.css"><link rel="stylesheet" href="styles.css"></head><body>
+<div id="app"></div>
+
+<!-- Те же поля данных, что и в первом дизайне: stats/events/devices. Меняете тут — меняется весь экран. -->
+<script id="data" type="application/json">
+{
+  "brand":"Vadalex Access","building":"Vadalex Tower","initials":"ВР",
+  "stats":[
+    {"icon":"activity","label":"События сегодня","value":"1 248","trend":"↑ 12% к вчера"},
+    {"icon":"face-id","label":"Распознано лиц","value":"932","trend":"↑ 8% к вчера"},
+    {"icon":"shield-x","label":"Доступ запрещён","value":"23","trend":"↓ 3% к вчера"},
+    {"icon":"users","label":"Посетители","value":"48","trend":"5 сейчас на объекте"},
+    {"icon":"server-2","label":"Устройства онлайн","value":"48 / 50","trend":"2 офлайн"}
+  ],
+  "events":[
+    {"initials":"ВР","name":"Вадим Рыжкин","meta":"Охрана · Главный холл · Карта","status":"Доступ разрешён","kind":"ok","time":"09:42:00"},
+    {"initials":"МГ","name":"Мария Гомес","meta":"Ресепшн · Гараж · Лицо · 93.3%","status":"Доступ разрешён","kind":"ok","time":"09:42:41"},
+    {"initials":"ОП","name":"Омар Петров","meta":"Охрана · Бассейн · Лицо · 94.6%","status":"Доступ разрешён","kind":"ok","time":"09:41:22"},
+    {"initials":"ДС","name":"Джон Смит","meta":"Квартира 1204 · Спортзал · Лицо · 95.9%","status":"Доступ разрешён","kind":"ok","time":"09:40:03"},
+    {"initials":"ЭБ","name":"Эмма Браун","meta":"Квартира 1007 · Служебный вход · Лицо · 97.2%","status":"Доступ запрещён","kind":"bad","time":"09:40:44"},
+    {"initials":"?","name":"Неизвестный человек","meta":"Северный лифт · Лицо","status":"Лицо не распознано","kind":"warn","time":"09:39:25"}
+  ],
+  "devices":[
+    {"name":"Считыватель · Главный холл","ip":"192.168.10.21","status":"Онлайн","kind":"ok"},
+    {"name":"Считыватель · Гараж","ip":"192.168.10.22","status":"Онлайн","kind":"ok"},
+    {"name":"Считыватель · Бассейн","ip":"192.168.10.23","status":"Онлайн","kind":"ok"},
+    {"name":"Контроллер · Спортзал","ip":"192.168.10.24","status":"Онлайн","kind":"ok"},
+    {"name":"Считыватель · Служебный вход","ip":"192.168.10.25","status":"Нужна синхр.","kind":"warn"},
+    {"name":"Считыватель · Северный лифт","ip":"192.168.10.26","status":"Офлайн","kind":"bad"}
+  ]
+}
+</script>
+
+<script src="app.js"></script>
+</body></html>
