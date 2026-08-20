@@ -1,0 +1,104 @@
+<!DOCTYPE html>
+<html lang="ru">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Камеры — Vadalex Access</title>
+<link rel="stylesheet" href="assets/fonts.css">
+<link rel="stylesheet" href="assets/styles.css">
+<style>
+.wallgrid{display:grid;gap:8px;background:var(--sidebar);border-radius:var(--radius);padding:10px}
+.wallgrid.g1{grid-template-columns:1fr}
+.wallgrid.g4{grid-template-columns:1fr 1fr}
+.wallgrid.g9{grid-template-columns:repeat(3,1fr)}
+.tile{position:relative;background:#111;border-radius:7px;aspect-ratio:16/10;overflow:hidden;display:flex;align-items:flex-end;color:#fff}
+.tile .lbl{position:relative;z-index:1;padding:8px 10px;font:600 10.5px var(--font-body);width:100%;display:flex;justify-content:space-between;align-items:center;background:linear-gradient(0deg,rgba(0,0,0,.65),transparent)}
+.tile .live{display:flex;align-items:center;gap:5px;color:#7fe0a0;font:700 9px var(--font-mono);text-transform:uppercase}
+.tile .live .dotpulse{width:6px;height:6px;border-radius:50%;background:#e0554c}
+.tile.offline{background:#1c1c1c}
+.tile.offline .lbl{color:#9a938a}
+.chanlist{display:grid;gap:2px}
+.chanrow{display:flex;justify-content:space-between;align-items:center;gap:10px;padding:9px 10px;border-radius:7px;cursor:grab}
+.chanrow:hover{background:var(--panel-2)}
+.chanrow .n{font-weight:700;font-size:12px}
+.chanrow .ip{color:var(--muted);font-size:10.5px;font-family:var(--font-mono)}
+</style>
+</head>
+<body>
+<script src="assets/db.js"></script>
+<script src="assets/app.js"></script>
+<script>
+const DB = window.VDX_DB;
+let layout = 'g1';
+let wall = DB.cameraChannels.slice(0,1);
+
+function tile(ch) {
+  if (!ch) return `<div class="tile offline"><div class="lbl"><span>Пустой тайл</span></div></div>`;
+  const off = ch.status === 'offline';
+  return `<div class="tile ${off?'offline':''}">
+    <div class="lbl">
+      ${off ? '<span>Нет сигнала</span>' : `<span class="live"><span class="dotpulse"></span>Live</span>`}
+      <span>${ch.name}</span>
+    </div>
+  </div>`;
+}
+
+function renderWall() {
+  const n = layout === 'g1' ? 1 : (layout === 'g4' ? 4 : 9);
+  document.getElementById('wall').className = 'wallgrid ' + layout;
+  const tiles = [];
+  for (let i = 0; i < n; i++) tiles.push(tile(wall[i]));
+  document.getElementById('wall').innerHTML = tiles.join('');
+  document.getElementById('wall-status').textContent = `${Math.min(wall.length,n)} из ${n} тайлов занято · ${DB.cameraChannels.length} каналов доступно`;
+}
+
+function setLayout(l, btn) { layout = l; document.querySelectorAll('.layoutbtn').forEach(b=>b.classList.remove('active')); btn.classList.add('active'); renderWall(); }
+function autoFill() { wall = DB.cameraChannels.slice(0, layout==='g1'?1:(layout==='g4'?4:9)); renderWall(); toast('Сетка заполнена автоматически'); }
+function clearWall() { wall = []; renderWall(); toast('Раскладка очищена'); }
+function assignChannel(name) {
+  const ch = DB.cameraChannels.find(c => c.name === name);
+  const n = layout === 'g1' ? 1 : (layout === 'g4' ? 4 : 9);
+  if (wall.length >= n) wall.shift();
+  wall.push(ch);
+  renderWall();
+  toast(`«${name}» добавлена в раскладку`);
+}
+
+function chanRow(c) {
+  return `<div class="chanrow" onclick="assignChannel('${c.name}')">
+    <div><div class="n">${c.name}</div><div class="ip">${c.location} · ${c.ip}</div></div>
+    <span class="tag ${c.status==='live'?'ok':'bad'}">${c.status==='live'?'Онлайн':'Офлайн'}</span>
+  </div>`;
+}
+
+const content = `
+${pageHead('Vadalex Tower · демо-аккаунт', 'Камеры', 'Перетащите камеру из списка каналов на любой тайл. Раскладки NVR от одиночного вида до 16×16.',
+  `<div style="display:flex;gap:8px">
+     <button class="btn outline" onclick="autoFill()">${svg('refresh')}Автозаполнение</button>
+     <button class="btn outline" onclick="clearWall()">${svg('close')}Очистить</button>
+   </div>`)}
+
+<div class="grid2" style="grid-template-columns:1fr 300px">
+  <section class="panel">
+    <div class="panel-head">
+      <div><h2>Раскладка</h2><p id="wall-status"></p></div>
+      <div style="display:flex;gap:4px">
+        <button class="layoutbtn ftab active" onclick="setLayout('g1',this)">1</button>
+        <button class="layoutbtn ftab" onclick="setLayout('g4',this)">4</button>
+        <button class="layoutbtn ftab" onclick="setLayout('g9',this)">9</button>
+      </div>
+    </div>
+    <div style="padding:16px 18px"><div class="wallgrid g4" id="wall"></div></div>
+  </section>
+  <section class="panel">
+    <div class="panel-head"><div><h2>Каналы</h2><p>Нажмите, чтобы добавить в раскладку</p></div></div>
+    <div class="chanlist" style="padding:6px 8px 10px">${DB.cameraChannels.map(chanRow).join('')}</div>
+  </section>
+</div>
+`;
+
+renderShell('cameras', content);
+renderWall();
+</script>
+</body>
+</html>

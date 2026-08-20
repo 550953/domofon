@@ -1,0 +1,95 @@
+<!DOCTYPE html>
+<html lang="ru">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Посетители — Vadalex Access</title>
+<link rel="stylesheet" href="assets/fonts.css">
+<link rel="stylesheet" href="assets/styles.css">
+</head>
+<body>
+<script src="assets/db.js"></script>
+<script src="assets/app.js"></script>
+<script>
+const DB = window.VDX_DB;
+let vFilter = 'Все';
+
+function visitorRow(v) {
+  const cls = v.status === 'На месте' ? 'ok' : (v.status === 'Ожидается' ? 'warn' : 'bad');
+  return `<tr>
+    <td><div class="dtname"><div><div>${v.name}</div><div class="dtsub">${v.company}</div></div></div></td>
+    <td>${v.type}</td>
+    <td>${v.unit}<div class="dtsub">${v.host}</div></td>
+    <td>${v.doc}<div class="dtsub">${v.docNo}</div></td>
+    <td><span class="tag ${cls}">${v.status}</span><div class="dtsub">${v.time}</div></td>
+    <td>
+      <div class="rowactions">
+        ${v.status === 'Ожидается' ? `<button onclick="checkIn('${v.name}')">Впустить</button>` : `<button onclick="checkOut('${v.name}')">Выпустить</button>`}
+        <button class="danger" onclick="deleteVisitor('${v.name}')">${svg('trash')}</button>
+      </div>
+    </td>
+  </tr>`;
+}
+
+function renderVisitors() {
+  let rows = DB.visitors;
+  if (vFilter !== 'Все') rows = rows.filter(v => v.type === vFilter);
+  document.getElementById('v-tbody').innerHTML = rows.length ? rows.map(visitorRow).join('') : `<tr><td colspan="6">${emptyState('Посетителей не найдено.')}</td></tr>`;
+}
+function setVFilter(v) { vFilter = v; document.querySelectorAll('#v-tabs .ftab').forEach(b => b.classList.toggle('active', b.textContent === v)); renderVisitors(); }
+
+function checkIn(name) { const v = DB.visitors.find(x=>x.name===name); if(v){ v.status='На месте'; v.time='Сейчас'; } renderVisitors(); toast(`${name} впущен(а)`); }
+function checkOut(name) { const v = DB.visitors.find(x=>x.name===name); if(v){ v.status='Ушёл'; } renderVisitors(); toast(`${name} выписан(а)`); }
+function deleteVisitor(name) { const i = DB.visitors.findIndex(x=>x.name===name); if(i>-1) DB.visitors.splice(i,1); renderVisitors(); toast('Запись удалена'); }
+
+function openRegisterVisitor() {
+  openModal('Зарегистрировать посетителя', `
+    <div class="formgrid">
+      ${fField('Имя', fInput('rv-name','','Имя и фамилия'))}
+      ${fField('Тип', fSelect('rv-type', ['Гость','Подрядчик','Поставщик'], 'Гость'))}
+      ${fField('Квартира / принимающий', fInput('rv-unit','','Кв. 1204'))}
+      ${fField('Хост', fInput('rv-host','','Кто принимает'))}
+      ${fField('Документ', fSelect('rv-doc', ['ID-карта','Паспорт','Водит. удост.'], 'ID-карта'))}
+      ${fField('Номер документа', fInput('rv-docno','',''))}
+    </div>
+  `, {wide:true});
+  document.getElementById('modal-root').querySelector('.modal').insertAdjacentHTML('beforeend', modalFooter(`
+    <button class="btn outline" onclick="closeModal()">Отмена</button>
+    <button class="btn" onclick="saveNewVisitor()">${svg('visitors')}Зарегистрировать</button>
+  `));
+}
+function saveNewVisitor() {
+  const name = document.getElementById('rv-name').value.trim() || 'Новый посетитель';
+  DB.visitors.unshift({ name, company: '—', type: document.getElementById('rv-type').value, unit: document.getElementById('rv-unit').value || '—',
+    host: document.getElementById('rv-host').value || '—', doc: document.getElementById('rv-doc').value, docNo: document.getElementById('rv-docno').value || '—',
+    scanned: 'Сейчас', verify: 'Проверен', contract: '—', status: 'На месте', time: 'Сейчас' });
+  closeModal(); renderVisitors(); toast(`${name} зарегистрирован(а)`);
+}
+
+const s = DB.visitorSummary;
+const tabs = ['Все','Гость','Подрядчик','Поставщик'];
+const content = `
+${pageHead('Vadalex Tower · демо-аккаунт', 'Посетители', 'Каждый гость, подрядчик и поставщик, входящий в здание — регистрация, проверка и пропуск.',
+  `<button class="btn" onclick="openRegisterVisitor()">${svg('visitors')}Зарегистрировать посетителя</button>`)}
+
+${statRow([
+  { icon:'visitors', label:'На месте сейчас', value: s.onSite },
+  { icon:'clock', label:'Ожидается сегодня', value: s.expected },
+  { icon:'key', label:'Подрядчики на месте', value: s.contractors },
+  { icon:'shieldAlert', label:'Проблемы допуска', value: s.holds, bad: true },
+])}
+
+<div id="v-tabs">${filterTabs('v', tabs, 'Все', 'setVFilter')}</div>
+<div class="tblwrap" style="margin-top:16px">
+  <table class="dt">
+    <thead><tr><th>Посетитель</th><th>Тип</th><th>Квартира / хост</th><th>Документ</th><th>Статус</th><th></th></tr></thead>
+    <tbody id="v-tbody"></tbody>
+  </table>
+</div>
+`;
+
+renderShell('visitors', content);
+renderVisitors();
+</script>
+</body>
+</html>

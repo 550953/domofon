@@ -1,0 +1,103 @@
+<!DOCTYPE html>
+<html lang="ru">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Устройства — Vadalex Access</title>
+<link rel="stylesheet" href="assets/fonts.css">
+<link rel="stylesheet" href="assets/styles.css">
+</head>
+<body>
+<script src="assets/db.js"></script>
+<script src="assets/app.js"></script>
+<script>
+const DB = window.VDX_DB;
+let devFilter = 'Все';
+let devTypeFilter = 'Все';
+
+function deviceRow(d) {
+  const cls = tagClass(d.status);
+  return `<tr>
+    <td><div class="dtname"><span class="dot ${cls==='bad'?'bad':cls==='warn'?'warn':''}"></span><div><div>${d.name}</div><div class="dtsub">${d.type}</div></div></div></td>
+    <td class="mono">${d.ip}</td>
+    <td>${d.model}</td>
+    <td class="mono">${d.serial}</td>
+    <td><span class="tag ${cls}">${d.status}</span></td>
+    <td>${d.db}</td>
+    <td>${d.lastSync}</td>
+    <td>
+      <div class="rowactions">
+        <button onclick="syncDevice('${d.name.replace(/'/g,"")}')">${svg('refresh')}</button>
+        <button class="danger" onclick="deleteDevice('${d.name.replace(/'/g,"")}')">${svg('trash')}</button>
+      </div>
+    </td>
+  </tr>`;
+}
+
+function renderDevices() {
+  let rows = DB.devices;
+  if (devFilter !== 'Все') rows = rows.filter(d => d.status === devFilter);
+  if (devTypeFilter !== 'Все') rows = rows.filter(d => d.type === devTypeFilter);
+  document.getElementById('dev-tbody').innerHTML = rows.length ? rows.map(deviceRow).join('') : `<tr><td colspan="8">${emptyState('Устройств по этим фильтрам нет.')}</td></tr>`;
+  document.getElementById('dev-count').textContent = `${rows.length} из ${DB.devices.length} устройств`;
+}
+function setDevFilter(v) { devFilter = v; document.querySelectorAll('#dev-tabs .ftab').forEach(b => b.classList.toggle('active', b.textContent === v)); renderDevices(); }
+function setDevType(v) { devTypeFilter = v; renderDevices(); }
+
+function syncDevice(name) { const d = DB.devices.find(x=>x.name===name); if(d){ d.status='Онлайн'; d.lastSync='Только что'; } renderDevices(); toast(`«${name}» синхронизировано`); }
+function deleteDevice(name) { const i = DB.devices.findIndex(x=>x.name===name); if(i>-1) DB.devices.splice(i,1); renderDevices(); toast('Устройство удалено'); }
+
+function openAddDevice() {
+  openModal('Добавить устройство', `
+    <div class="formgrid">
+      ${fField('Название', fInput('nde-name','','Например, Терраса · считыватель'))}
+      ${fField('Тип', fSelect('nde-type', ['Терминал распознавания лиц','Контроллер двери','Считыватель','IP-камера','Домофонная станция'], 'Считыватель'))}
+      ${fField('IP-адрес', fInput('nde-ip','','192.168.10.50'))}
+      ${fField('Модель', fInput('nde-model','','RD-100'))}
+    </div>
+  `);
+  document.getElementById('modal-root').querySelector('.modal').insertAdjacentHTML('beforeend', modalFooter(`
+    <button class="btn outline" onclick="closeModal()">Отмена</button>
+    <button class="btn" onclick="saveNewDevice()">Добавить</button>
+  `));
+}
+function saveNewDevice() {
+  const name = document.getElementById('nde-name').value.trim() || 'Новое устройство';
+  DB.devices.unshift({ name, type: document.getElementById('nde-type').value, ip: document.getElementById('nde-ip').value || '—',
+    model: document.getElementById('nde-model').value || '—', serial: 'SN' + Math.floor(Math.random()*90000+10000),
+    status: 'Онлайн', db: '—', lastSync: 'Только что', firmware: '1.0.0' });
+  closeModal(); renderDevices(); toast(`«${name}» добавлено`);
+}
+
+const s = DB.system.devices;
+const tabs = ['Все','Онлайн','Офлайн','Нужна синхр.'];
+const types = ['Все','Терминал распознавания лиц','Контроллер двери','Считыватель','IP-камера','Домофонная станция'];
+const content = `
+${pageHead('Vadalex Tower · демо-аккаунт', 'Устройства', 'Управляйте считывателями лиц, контроллерами, IP-камерами и подключённым оборудованием.',
+  `<button class="btn" onclick="openAddDevice()">${svg('plus')}Добавить устройство</button>`)}
+
+${statRow([
+  { icon:'devices', label:'Устройства', value: s.total },
+  { icon:'circleCheck', label:'Онлайн', value: s.online },
+  { icon:'shieldAlert', label:'Офлайн', value: s.offline, bad: true },
+])}
+
+${toolbar(
+  `<div id="dev-tabs">${filterTabs('dev', tabs, 'Все', 'setDevFilter')}</div>
+   <select class="select-sm" onchange="setDevType(this.value)">${types.map(t=>`<option>${t}</option>`).join('')}</select>`,
+  `<span class="hint" id="dev-count"></span>`
+)}
+
+<div class="tblwrap">
+  <table class="dt">
+    <thead><tr><th>Устройство</th><th>IP-адрес</th><th>Модель</th><th>Серийный №</th><th>Статус</th><th>БД</th><th>Синхр.</th><th></th></tr></thead>
+    <tbody id="dev-tbody"></tbody>
+  </table>
+</div>
+`;
+
+renderShell('devices', content);
+renderDevices();
+</script>
+</body>
+</html>

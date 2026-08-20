@@ -1,0 +1,53 @@
+<!DOCTYPE html>
+<html lang="ru">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Отчёты — Vadalex Access</title>
+<link rel="stylesheet" href="assets/fonts.css">
+<link rel="stylesheet" href="assets/styles.css">
+</head>
+<body>
+<script src="assets/db.js"></script>
+<script src="assets/app.js"></script>
+<script>
+const DB = window.VDX_DB;
+let range = 'Последние 7 дней';
+
+function reportCard(r) {
+  return `<div class="entity">
+    <div class="entity-head"><div><h3>${r.name}</h3><p>${r.desc}</p></div></div>
+    <div class="entity-facts"><div>Диапазон: <b>${range}</b></div></div>
+    <div class="entity-actions">
+      <button onclick="exportReport('${r.name}','CSV')">${svg('fileText')}CSV</button>
+      <button onclick="exportReport('${r.name}','PDF')">${svg('download')}PDF</button>
+    </div>
+  </div>`;
+}
+function exportReport(name, fmt) { toast(`«${name}» экспортирован в ${fmt}`); }
+function runScheduled(name) { toast(`«${name}» запущен вручную`); }
+function setRange(v) { range = v; document.querySelectorAll('#range-tabs .ftab').forEach(b => b.classList.toggle('active', b.textContent === v)); renderReports(); }
+function renderReports() { document.getElementById('reports-grid').innerHTML = DB.reportTypes.map(reportCard).join(''); }
+
+const ranges = ['Сегодня','Вчера','Последние 7 дней','Последние 30 дней'];
+const content = `
+${pageHead('Vadalex Tower · демо-аккаунт', 'Отчёты', 'Отвечайте на вопросы о доступе без выгрузки сырых логов.', '')}
+
+<div id="range-tabs">${filterTabs('range', ranges, 'Последние 7 дней', 'setRange')}</div>
+<div class="cardgrid" id="reports-grid" style="margin-top:16px"></div>
+
+<section class="panel" style="margin-top:20px">
+  <div class="panel-head"><div><h2>Запланированные отчёты</h2><p>Доставляются на принтер ресепшн или в локальную папку</p></div></div>
+  <div class="rows">${DB.scheduledReports.map(r => `
+    <div class="row">
+      <div class="info"><div class="name">${r.name}</div><div class="meta"><i>${r.when}</i></div></div>
+      <button class="btn outline" onclick="runScheduled('${r.name}')">Запустить сейчас</button>
+    </div>`).join('')}</div>
+</section>
+`;
+
+renderShell('reports', content);
+renderReports();
+</script>
+</body>
+</html>

@@ -1,0 +1,145 @@
+<!DOCTYPE html>
+<html lang="ru">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Люди — Vadalex Access</title>
+<link rel="stylesheet" href="assets/fonts.css">
+<link rel="stylesheet" href="assets/styles.css">
+</head>
+<body>
+<script src="assets/db.js"></script>
+<script src="assets/app.js"></script>
+<script>
+const DB = window.VDX_DB;
+let peopleFilter = 'Все';
+let peopleQuery = '';
+
+function personRow(p) {
+  const cls = tagClass(p.status);
+  return `<tr>
+    <td>
+      <div class="dtname">
+        <span class="person">${p.initials}</span>
+        <div>
+          <div>${p.name}</div>
+          <div class="dtsub">${p.role || p.type}</div>
+        </div>
+      </div>
+    </td>
+    <td>${p.type}</td>
+    <td>${p.unit}</td>
+    <td>${p.accessGroup}</td>
+    <td><span class="tag ${cls}">${p.status}</span></td>
+    <td>
+      <div class="rowactions">
+        <button onclick="openPerson('${p.initials}','${p.name.replace(/'/g,"")}')">${svg('penLine')}</button>
+        <button class="danger" onclick="deletePerson('${p.name.replace(/'/g,"")}')">${svg('trash')}</button>
+      </div>
+    </td>
+  </tr>`;
+}
+
+function renderPeople() {
+  const rows = DB.people.filter(p => (peopleFilter === 'Все' || p.type === peopleFilter) &&
+    (peopleQuery === '' || p.name.toLowerCase().includes(peopleQuery.toLowerCase()) || p.unit.toLowerCase().includes(peopleQuery.toLowerCase())));
+  document.getElementById('people-tbody').innerHTML = rows.length
+    ? rows.map(personRow).join('')
+    : `<tr><td colspan="6">${emptyState('Никого не найдено по этим фильтрам.')}</td></tr>`;
+  document.getElementById('people-count').textContent = `${rows.length} из ${DB.people.length} человек`;
+}
+
+function setPeopleFilter(v) { peopleFilter = v; document.querySelectorAll('#ftabs-type .ftab').forEach(b => b.classList.toggle('active', b.textContent === v)); renderPeople(); }
+function setPeopleQuery(v) { peopleQuery = v; renderPeople(); }
+
+function openAddPerson() {
+  openModal('Добавить человека', `
+    <p class="desc">Зарегистрируйте нового жителя, сотрудника, гостя или подрядчика.</p>
+    <div class="formgrid">
+      ${fField('Имя', fInput('np-name','','Иван Иванов'))}
+      ${fField('Тип', fSelect('np-type', ['Житель','Персонал','Гость','Подрядчик'], 'Житель'))}
+      ${fField('Квартира / отдел', fInput('np-unit','','Кв. 1301'))}
+      ${fField('Группа доступа', fSelect('np-group', DB.accessGroups.map(g=>g.name), DB.accessGroups[0].name))}
+      ${fField('Email', fInput('np-email','','ivan@example.com'), {full:true})}
+    </div>
+  `, {});
+  document.getElementById('modal-root').querySelector('.modal').insertAdjacentHTML('beforeend', modalFooter(`
+    <button class="btn outline" onclick="closeModal()">Отмена</button>
+    <button class="btn" onclick="saveNewPerson()">${svg('userPlus')}Добавить</button>
+  `));
+}
+
+function saveNewPerson() {
+  const name = document.getElementById('np-name').value.trim() || 'Новый человек';
+  const type = document.getElementById('np-type').value;
+  const unit = document.getElementById('np-unit').value || '—';
+  const group = document.getElementById('np-group').value;
+  const initials = name.split(' ').map(w=>w[0]).join('').toUpperCase().slice(0,2) || 'НН';
+  DB.people.unshift({ initials, name, role: null, type, unit, accessGroup: group, status: 'Активен' });
+  closeModal();
+  renderPeople();
+  toast(`${name} добавлен(а)`);
+}
+
+function openPerson(initials, name) {
+  const p = DB.people.find(x => x.name === name);
+  if (!p) return;
+  openModal(p.name, `
+    <div class="detail-list">
+      <div class="detail-row"><span>Тип</span><span>${p.type}</span></div>
+      <div class="detail-row"><span>Квартира / отдел</span><span>${p.unit}</span></div>
+      <div class="detail-row"><span>Группа доступа</span><span>${p.accessGroup}</span></div>
+      <div class="detail-row"><span>Статус</span><span><span class="tag ${tagClass(p.status)}">${p.status}</span></span></div>
+    </div>
+    <div class="formgrid" style="margin-top:16px">
+      ${fField('Статус', fSelect('ep-status', ['Активен','Ожидает синхр.','Заблокирован','Истёк'], p.status))}
+      ${fField('Группа доступа', fSelect('ep-group', DB.accessGroups.map(g=>g.name), p.accessGroup))}
+    </div>
+  `, {});
+  document.getElementById('modal-root').querySelector('.modal').insertAdjacentHTML('beforeend', modalFooter(`
+    <button class="btn outline" onclick="closeModal()">Закрыть</button>
+    <button class="btn" onclick="savePersonEdit('${name.replace(/'/g,"")}')">Сохранить</button>
+  `));
+}
+
+function savePersonEdit(name) {
+  const p = DB.people.find(x => x.name === name);
+  if (!p) return;
+  p.status = document.getElementById('ep-status').value;
+  p.accessGroup = document.getElementById('ep-group').value;
+  closeModal();
+  renderPeople();
+  toast('Изменения сохранены');
+}
+
+function deletePerson(name) {
+  const idx = DB.people.findIndex(x => x.name === name);
+  if (idx > -1) DB.people.splice(idx, 1);
+  renderPeople();
+  toast(`${name} удалён(а)`);
+}
+
+const types = ['Все','Житель','Персонал','Гость','Подрядчик'];
+const content = `
+${pageHead('Vadalex Tower · демо-аккаунт', 'Люди', 'Управление жителями, персоналом, посетителями и учётными данными.',
+  `<button class="btn" onclick="openAddPerson()">${svg('userPlus')}Добавить человека</button>`)}
+
+${toolbar(
+  `<div id="ftabs-type">${filterTabs('type', types, 'Все', 'setPeopleFilter')}</div>
+   <div class="tsearch">${svg('search')}<input placeholder="Поиск по имени или квартире..." oninput="setPeopleQuery(this.value)"></div>`,
+  `<span class="hint" id="people-count"></span>`
+)}
+
+<div class="tblwrap">
+  <table class="dt">
+    <thead><tr><th>Имя</th><th>Тип</th><th>Квартира / отдел</th><th>Группа доступа</th><th>Статус</th><th></th></tr></thead>
+    <tbody id="people-tbody"></tbody>
+  </table>
+</div>
+`;
+
+renderShell('people', content);
+renderPeople();
+</script>
+</body>
+</html>

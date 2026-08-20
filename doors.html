@@ -1,0 +1,133 @@
+<!DOCTYPE html>
+<html lang="ru">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Двери — Vadalex Access</title>
+<link rel="stylesheet" href="assets/fonts.css">
+<link rel="stylesheet" href="assets/styles.css">
+</head>
+<body>
+<script src="assets/db.js"></script>
+<script src="assets/app.js"></script>
+<script>
+const DB = window.VDX_DB;
+let doorFilter = 'Все';
+
+const lockLabel = { Locked: 'Заперта', Unlocked: 'Открыта', 'Held Open': 'Удерживается открытой', Alarm: 'Тревога' };
+const intercomLabel = { 'Звонит':'Звонит', 'Ожидание':'В ожидании', 'Нет':'Нет домофона', 'Не беспокоить':'Не беспокоить', 'Офлайн':'Офлайн', 'В разговоре':'В разговоре' };
+
+function doorCard(d) {
+  const statCls = tagClass(d.status);
+  const lockCls = d.lockState === 'Alarm' ? 'bad' : (d.lockState === 'Unlocked' || d.lockState === 'Held Open' ? 'warn' : 'ok');
+  return `<div class="entity">
+    <div class="entity-head">
+      <div><h3>${d.name}</h3><p>${d.location}</p></div>
+      <div class="entity-badges"><span class="tag ${statCls}">${d.status}</span></div>
+    </div>
+    <div class="entity-badges">
+      <span class="tag ${lockCls}">${lockLabel[d.lockState] || d.lockState}</span>
+      <span class="tag warn">${svg('intercom')} ${intercomLabel[d.intercom] || d.intercom}</span>
+      ${d.camera === 'online' ? `<span class="tag ok">${svg('camera')} Камера онлайн</span>` : ''}
+    </div>
+    <div class="entity-facts">
+      <div>Контроллер: <b>${d.reader}</b></div>
+      <div>Последнее событие: <b>${d.lastEvent}</b></div>
+    </div>
+    <div class="entity-actions">
+      <button onclick="doorAction('${d.name.replace(/'/g,"")}','open')">${svg('doorOpen2')}Открыть</button>
+      <button onclick="doorAction('${d.name.replace(/'/g,"")}','lock')">${svg('lock')}Запереть</button>
+      <button onclick="doorAction('${d.name.replace(/'/g,"")}','unlock')">${svg('unlock')}Отпереть</button>
+      <button onclick="openDoorDetails('${d.name.replace(/'/g,"")}')">${svg('penLine')}Изменить</button>
+      <button class="danger" onclick="deleteDoor('${d.name.replace(/'/g,"")}')">${svg('trash')}</button>
+    </div>
+  </div>`;
+}
+
+function renderDoors() {
+  let rows = DB.doors;
+  if (doorFilter === 'Онлайн') rows = rows.filter(d => d.status === 'Онлайн');
+  else if (doorFilter === 'Офлайн') rows = rows.filter(d => d.status === 'Офлайн');
+  else if (doorFilter === 'Тревога') rows = rows.filter(d => d.lockState === 'Alarm');
+  else if (doorFilter === 'Открыта') rows = rows.filter(d => d.lockState === 'Unlocked' || d.lockState === 'Held Open');
+  else if (doorFilter === 'Заперта') rows = rows.filter(d => d.lockState === 'Locked');
+  document.getElementById('doors-grid').innerHTML = rows.length ? rows.map(doorCard).join('') : emptyState('Дверей по этому фильтру нет.');
+}
+
+function setDoorFilter(v) { doorFilter = v; document.querySelectorAll('#door-tabs .ftab').forEach(b => b.classList.toggle('active', b.textContent === v)); renderDoors(); }
+
+function doorAction(name, action) {
+  const d = DB.doors.find(x => x.name === name);
+  if (!d) return;
+  if (action === 'open') { d.lockState = 'Unlocked'; toast(`«${name}» открыта удалённо`); }
+  if (action === 'lock') { d.lockState = 'Locked'; toast(`«${name}» заперта`); }
+  if (action === 'unlock') { d.lockState = 'Unlocked'; toast(`«${name}» отперта`); }
+  renderDoors();
+}
+
+function openAddDoor() {
+  openModal('Добавить дверь', `
+    <div class="formgrid">
+      ${fField('Название', fInput('nd-name','','Например, Терраса'))}
+      ${fField('Расположение', fInput('nd-loc','','Уровень 4'))}
+      ${fField('Контроллер', fInput('nd-ctrl','','Считыватель / контроллер'))}
+      ${fField('Начальное состояние', fSelect('nd-lock', ['Locked','Unlocked'], 'Locked'))}
+    </div>
+  `);
+  document.getElementById('modal-root').querySelector('.modal').insertAdjacentHTML('beforeend', modalFooter(`
+    <button class="btn outline" onclick="closeModal()">Отмена</button>
+    <button class="btn" onclick="saveNewDoor()">Добавить</button>
+  `));
+}
+function saveNewDoor() {
+  const name = document.getElementById('nd-name').value.trim() || 'Новая дверь';
+  DB.doors.unshift({ name, location: document.getElementById('nd-loc').value || '—', status: 'Онлайн',
+    lockState: document.getElementById('nd-lock').value, camera: 'none', reader: document.getElementById('nd-ctrl').value || '—',
+    lastEvent: '—', intercom: 'Нет' });
+  closeModal(); renderDoors(); toast(`Дверь «${name}» добавлена`);
+}
+function openDoorDetails(name) {
+  const d = DB.doors.find(x => x.name === name);
+  if (!d) return;
+  openModal(`Изменить: ${d.name}`, `
+    <div class="formgrid">
+      ${fField('Название', fInput('ed-name', d.name))}
+      ${fField('Расположение', fInput('ed-loc', d.location))}
+      ${fField('Статус', fSelect('ed-status', ['Онлайн','Офлайн'], d.status))}
+      ${fField('Состояние замка', fSelect('ed-lock', ['Locked','Unlocked','Held Open','Alarm'], d.lockState))}
+    </div>
+  `);
+  document.getElementById('modal-root').querySelector('.modal').insertAdjacentHTML('beforeend', modalFooter(`
+    <button class="btn outline" onclick="closeModal()">Отмена</button>
+    <button class="btn" onclick="saveDoorEdit('${name.replace(/'/g,"")}')">Сохранить</button>
+  `));
+}
+function saveDoorEdit(oldName) {
+  const d = DB.doors.find(x => x.name === oldName);
+  if (!d) return;
+  d.name = document.getElementById('ed-name').value.trim() || d.name;
+  d.location = document.getElementById('ed-loc').value;
+  d.status = document.getElementById('ed-status').value;
+  d.lockState = document.getElementById('ed-lock').value;
+  closeModal(); renderDoors(); toast('Изменения сохранены');
+}
+function deleteDoor(name) {
+  const idx = DB.doors.findIndex(x => x.name === name);
+  if (idx > -1) DB.doors.splice(idx, 1);
+  renderDoors(); toast(`«${name}» удалена`);
+}
+
+const tabs = ['Все','Онлайн','Офлайн','Тревога','Открыта','Заперта'];
+const content = `
+${pageHead('Vadalex Tower · демо-аккаунт', 'Двери', 'Каждая управляемая дверь, её состояние и считыватель.',
+  `<button class="btn" onclick="openAddDoor()">${svg('plus')}Добавить дверь</button>`)}
+
+<div id="door-tabs">${filterTabs('door', tabs, 'Все', 'setDoorFilter')}</div>
+<div class="cardgrid" id="doors-grid" style="margin-top:16px"></div>
+`;
+
+renderShell('doors', content);
+renderDoors();
+</script>
+</body>
+</html>

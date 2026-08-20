@@ -1,0 +1,59 @@
+<!DOCTYPE html>
+<html lang="ru">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Справка — Vadalex Access</title>
+<link rel="stylesheet" href="assets/fonts.css">
+<link rel="stylesheet" href="assets/styles.css">
+<style>
+.faq{background:var(--panel);border:1px solid var(--line);border-radius:var(--radius);overflow:hidden;margin-bottom:10px}
+.faq summary{list-style:none;padding:15px 18px;font:700 13px var(--font-display);cursor:pointer;display:flex;justify-content:space-between;align-items:center}
+.faq summary::-webkit-details-marker{display:none}
+.faq p{margin:0;padding:0 18px 16px;color:var(--muted);font-size:12.5px;line-height:1.6}
+.faq[open] summary{border-bottom:1px dashed var(--line)}
+</style>
+</head>
+<body>
+<script src="assets/db.js"></script>
+<script src="assets/app.js"></script>
+<script>
+const DB = window.VDX_DB;
+let helpQuery = '';
+
+function faqItem(t) {
+  return `<details class="faq"><summary>${t.title}${svg('arrowRight')}</summary><p>${t.body}</p></details>`;
+}
+function renderHelp() {
+  const rows = DB.helpTopics.filter(t => helpQuery === '' || t.title.toLowerCase().includes(helpQuery.toLowerCase()) || t.body.toLowerCase().includes(helpQuery.toLowerCase()));
+  document.getElementById('faq-list').innerHTML = rows.length ? rows.map(faqItem).join('') : emptyState('По вашему запросу ничего не найдено.');
+}
+function setHelpQuery(v) { helpQuery = v; renderHelp(); }
+
+function openContactSupport() {
+  openModal('Связаться с поддержкой', `
+    <div class="formgrid">
+      ${fField('Тема', fInput('cs-subj','','Кратко опишите проблему'), {full:true})}
+      ${fField('Описание', fTextarea('cs-desc','','Что произошло и когда'), {full:true})}
+      ${fField('Приоритет', fSelect('cs-pri', ['Низкий','Средний','Высокий'], 'Средний'))}
+    </div>
+  `);
+  document.getElementById('modal-root').querySelector('.modal').insertAdjacentHTML('beforeend', modalFooter(`
+    <button class="btn outline" onclick="closeModal()">Отмена</button>
+    <button class="btn" onclick="closeModal(); toast('Заявка отправлена в поддержку')">Отправить</button>
+  `));
+}
+
+const content = `
+${pageHead('Vadalex Tower · демо-аккаунт', 'Справка', 'Ответы на частые вопросы и связь с поддержкой.',
+  `<button class="btn" onclick="openContactSupport()">${svg('help')}Связаться с поддержкой</button>`)}
+
+<div class="tsearch" style="width:min(420px,100%);margin-bottom:16px">${svg('search')}<input placeholder="Поиск по справке..." oninput="setHelpQuery(this.value)"></div>
+<div id="faq-list"></div>
+`;
+
+renderShell('help', content);
+renderHelp();
+</script>
+</body>
+</html>

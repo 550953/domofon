@@ -1,0 +1,122 @@
+<!DOCTYPE html>
+<html lang="ru">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Настройки — Vadalex Access</title>
+<link rel="stylesheet" href="assets/fonts.css">
+<link rel="stylesheet" href="assets/styles.css">
+<style>
+.settingsnav{display:grid;gap:2px;align-content:start;align-self:start}
+.settingsnav a{display:flex;align-items:center;gap:9px;padding:9px 11px;border-radius:8px;font:600 12px var(--font-body);color:var(--muted)}
+.settingsnav a.active{background:var(--brand-soft);color:var(--brand)}
+.settingsnav a:hover:not(.active){background:var(--panel-2);color:var(--ink)}
+.settingslayout{display:grid;grid-template-columns:200px 1fr;gap:20px}
+@media(max-width:900px){.settingslayout{grid-template-columns:1fr}}
+</style>
+</head>
+<body>
+<script src="assets/db.js"></script>
+<script src="assets/app.js"></script>
+<script>
+const DB = window.VDX_DB;
+let setTab = 'Общие';
+
+function operatorRow(o) {
+  return `<tr>
+    <td>${o.name}</td><td>${o.email}</td><td>${o.role}</td><td><span class="tag ${tagClass(o.status)}">${o.status}</span></td>
+    <td><div class="rowactions"><button onclick="toast('Открыть профиль оператора')">${svg('penLine')}</button><button class="danger" onclick="removeOperator('${o.name}')">${svg('trash')}</button></div></td>
+  </tr>`;
+}
+function removeOperator(name) { const i = DB.operators.findIndex(x=>x.name===name); if(i>-1) DB.operators.splice(i,1); renderSettings(); toast('Оператор удалён'); }
+
+function openAddOperator() {
+  openModal('Добавить оператора', `
+    <div class="formgrid">
+      ${fField('Имя', fInput('op-name','',''))}
+      ${fField('Email', fInput('op-email','',''))}
+      ${fField('Роль', fSelect('op-role', ['Администратор','Менеджер','Оператор'], 'Оператор'), {full:true})}
+    </div>
+  `);
+  document.getElementById('modal-root').querySelector('.modal').insertAdjacentHTML('beforeend', modalFooter(`
+    <button class="btn outline" onclick="closeModal()">Отмена</button>
+    <button class="btn" onclick="saveOperator()">Добавить</button>
+  `));
+}
+function saveOperator() {
+  const name = document.getElementById('op-name').value.trim() || 'Новый оператор';
+  DB.operators.unshift({ name, email: document.getElementById('op-email').value || '—', role: document.getElementById('op-role').value, status: 'Активен' });
+  closeModal(); renderSettings(); toast(`«${name}» добавлен`);
+}
+
+function saveGeneral() {
+  const s = DB.settingsData;
+  s.systemName = document.getElementById('gs-system').value;
+  s.propertyName = document.getElementById('gs-property').value;
+  s.timezone = document.getElementById('gs-tz').value;
+  s.language = document.getElementById('gs-lang').value;
+  toast('Изменения сохранены');
+}
+
+function renderSettings() {
+  const body = document.getElementById('settings-body');
+  const s = DB.settingsData;
+  if (setTab === 'Общие') {
+    body.innerHTML = `<section class="panel">
+      <div class="panel-head"><div><h2>Общие</h2><p>Как система себя идентифицирует</p></div></div>
+      <div style="padding:18px" class="formgrid">
+        ${fField('Название системы', fInput('gs-system', s.systemName))}
+        ${fField('Название объекта', fInput('gs-property', s.propertyName))}
+        ${fField('Часовой пояс', fInput('gs-tz', s.timezone))}
+        ${fField('Формат даты', fInput('gs-date', s.dateFormat))}
+        ${fField('Язык', fSelect('gs-lang', ['Русский','English'], s.language))}
+      </div>
+      <div style="padding:0 18px 18px"><button class="btn" onclick="saveGeneral()">Сохранить изменения</button></div>
+    </section>`;
+  } else if (setTab === 'Пользователи и роли') {
+    body.innerHTML = `<section class="panel">
+      <div class="panel-head"><div><h2>Пользователи и роли</h2><p>Кто может управлять этой системой</p></div><button class="btn outline" onclick="openAddOperator()">${svg('plus')}Добавить</button></div>
+      <div class="tblwrap" style="border:0;border-radius:0"><table class="dt"><thead><tr><th>Имя</th><th>Email</th><th>Роль</th><th>Статус</th><th></th></tr></thead>
+      <tbody>${DB.operators.map(operatorRow).join('')}</tbody></table></div>
+    </section>`;
+  } else if (setTab === 'Безопасность') {
+    body.innerHTML = `<section class="panel"><div class="panel-head"><div><h2>Безопасность</h2><p>Политики входа и доступа операторов</p></div></div>
+      <div style="padding:18px" class="formgrid">
+        ${fField('Двухфакторная аутентификация', fSelect('sec-2fa', ['Включена','Отключена'], 'Включена'))}
+        ${fField('Тайм-аут сессии', fSelect('sec-timeout', ['15 минут','30 минут','1 час'], '30 минут'))}
+      </div>
+      <div style="padding:0 18px 18px"><button class="btn" onclick="toast('Изменения сохранены')">Сохранить изменения</button></div>
+    </section>`;
+  } else if (setTab === 'Хранилище и копии') {
+    body.innerHTML = `<section class="panel"><div class="panel-head"><div><h2>Хранилище и резервное копирование</h2><p>Локальные файлы и расписание копий</p></div></div>
+      <div class="detail-list" style="padding:18px">
+        <div class="detail-row"><span>Расположение копий</span><span class="mono">/var/vadalex/backups</span></div>
+        <div class="detail-row"><span>Расписание</span><span>Ежедневно в 2:00</span></div>
+      </div>
+    </section>`;
+  } else {
+    body.innerHTML = `<section class="panel"><div class="panel-head"><div><h2>Сеть</h2><p>Локальная сеть и подключённые сегменты</p></div></div>
+      <div class="detail-list" style="padding:18px">
+        <div class="detail-row"><span>Режим</span><span>Локальный, без выхода в интернет</span></div>
+        <div class="detail-row"><span>Подсеть устройств</span><span class="mono">192.168.10.0/24</span></div>
+      </div>
+    </section>`;
+  }
+}
+
+function setSettingsTab(v, el) { setTab = v; document.querySelectorAll('.settingsnav a').forEach(a => a.classList.toggle('active', a === el)); renderSettings(); }
+
+const navItems = ['Общие','Пользователи и роли','Безопасность','Хранилище и копии','Сеть'];
+const content = `
+${pageHead('Vadalex Tower · демо-аккаунт', 'Настройки', 'Настройте систему, операторов и локальное окружение.', '')}
+<div class="settingslayout">
+  <nav class="settingsnav">${navItems.map((n,i) => `<a href="#" class="${i===0?'active':''}" onclick="event.preventDefault(); setSettingsTab('${n}', this)">${n}</a>`).join('')}</nav>
+  <div id="settings-body"></div>
+</div>
+`;
+
+renderShell('settings', content);
+renderSettings();
+</script>
+</body>
+</html>

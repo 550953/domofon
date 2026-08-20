@@ -1,0 +1,120 @@
+<!DOCTYPE html>
+<html lang="ru">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Лифты — Vadalex Access</title>
+<link rel="stylesheet" href="assets/fonts.css">
+<link rel="stylesheet" href="assets/styles.css">
+</head>
+<body>
+<script src="assets/db.js"></script>
+<script src="assets/app.js"></script>
+<script>
+const DB = window.VDX_DB;
+let elFilter = 'Все';
+
+function elCard(e) {
+  const statCls = tagClass(e.status);
+  const modeCls = e.mode === 'Заблокирован' ? 'bad' : (e.mode === 'Свободный доступ' ? 'ok' : 'warn');
+  return `<div class="entity">
+    <div class="entity-head">
+      <div><h3>${e.name}</h3><p>${e.location}</p></div>
+      <div class="entity-badges"><span class="tag ${statCls}">${e.status}</span></div>
+    </div>
+    <div class="entity-badges"><span class="tag ${modeCls}">${e.mode}</span></div>
+    <div class="entity-facts">
+      <div>Кабина: <b>${e.cab}</b></div>
+      <div>Этажей: <b>${e.floors}</b> · Контроллер: <b>${e.controller}</b></div>
+      <div>Последняя поездка: <b>${e.lastTrip}</b></div>
+    </div>
+    <div class="entity-actions">
+      <button onclick="openElevatorEdit('${e.name}')">${svg('penLine')}Изменить</button>
+      <button class="danger" onclick="deleteElevator('${e.name}')">${svg('trash')}</button>
+    </div>
+  </div>`;
+}
+
+function renderElevators() {
+  let rows = DB.elevators;
+  if (elFilter === 'Онлайн') rows = rows.filter(e => e.status === 'Онлайн');
+  else if (elFilter === 'Офлайн') rows = rows.filter(e => e.status === 'Офлайн');
+  else if (elFilter === 'Требуется карта') rows = rows.filter(e => e.mode === 'Требуется карта');
+  else if (elFilter === 'Свободный доступ') rows = rows.filter(e => e.mode === 'Свободный доступ');
+  else if (elFilter === 'Заблокирован') rows = rows.filter(e => e.mode === 'Заблокирован');
+  document.getElementById('el-grid').innerHTML = rows.length ? rows.map(elCard).join('') : emptyState('Лифтов по этому фильтру нет.');
+}
+function setElFilter(v) { elFilter = v; document.querySelectorAll('#el-tabs .ftab').forEach(b => b.classList.toggle('active', b.textContent === v)); renderElevators(); }
+
+function openAddElevator() {
+  openModal('Добавить лифт', `
+    <div class="formgrid">
+      ${fField('Название', fInput('ne-name','','Лифт E1'))}
+      ${fField('Расположение', fInput('ne-loc','','Башня C · зона'))}
+      ${fField('Контроллер', fInput('ne-ctrl','','LIFT-CTRL-0X'))}
+      ${fField('Режим доступа', fSelect('ne-mode', ['Требуется карта','Свободный доступ','Заблокирован'], 'Требуется карта'))}
+    </div>
+  `);
+  document.getElementById('modal-root').querySelector('.modal').insertAdjacentHTML('beforeend', modalFooter(`
+    <button class="btn outline" onclick="closeModal()">Отмена</button>
+    <button class="btn" onclick="saveNewElevator()">Добавить</button>
+  `));
+}
+function saveNewElevator() {
+  const name = document.getElementById('ne-name').value.trim() || 'Новый лифт';
+  DB.elevators.unshift({ name, location: document.getElementById('ne-loc').value || '—', status: 'Онлайн',
+    mode: document.getElementById('ne-mode').value, cab: 'Ожидание · этаж Г', floors: 10,
+    controller: document.getElementById('ne-ctrl').value || '—', lastTrip: '—' });
+  closeModal(); renderElevators(); toast(`«${name}» добавлен`);
+}
+function openElevatorEdit(name) {
+  const e = DB.elevators.find(x => x.name === name);
+  if (!e) return;
+  openModal(`Изменить: ${e.name}`, `
+    <div class="formgrid">
+      ${fField('Название', fInput('ee-name', e.name))}
+      ${fField('Статус', fSelect('ee-status', ['Онлайн','Офлайн'], e.status))}
+      ${fField('Режим доступа', fSelect('ee-mode', ['Требуется карта','Свободный доступ','Заблокирован'], e.mode), {full:true})}
+    </div>
+  `);
+  document.getElementById('modal-root').querySelector('.modal').insertAdjacentHTML('beforeend', modalFooter(`
+    <button class="btn outline" onclick="closeModal()">Отмена</button>
+    <button class="btn" onclick="saveElevatorEdit('${name}')">Сохранить</button>
+  `));
+}
+function saveElevatorEdit(oldName) {
+  const e = DB.elevators.find(x => x.name === oldName);
+  if (!e) return;
+  e.name = document.getElementById('ee-name').value.trim() || e.name;
+  e.status = document.getElementById('ee-status').value;
+  e.mode = document.getElementById('ee-mode').value;
+  closeModal(); renderElevators(); toast('Изменения сохранены');
+}
+function deleteElevator(name) {
+  const idx = DB.elevators.findIndex(x => x.name === name);
+  if (idx > -1) DB.elevators.splice(idx, 1);
+  renderElevators(); toast(`«${name}» удалён`);
+}
+
+const s = DB.elevatorSummary;
+const tabs = ['Все','Онлайн','Офлайн','Требуется карта','Свободный доступ','Заблокирован'];
+const content = `
+${pageHead('Vadalex Tower · демо-аккаунт', 'Управление лифтами', 'Считыватели в кабинах, разрешения по этажам и назначение рейсов для каждого лифтового банка.',
+  `<button class="btn" onclick="openAddElevator()">${svg('plus')}Добавить лифт</button>`)}
+
+${statRow([
+  { icon:'elevator', label:'Лифты', value: s.total },
+  { icon:'circleCheck', label:'Онлайн', value: s.online },
+  { icon:'access', label:'Ограниченные этажи', value: s.restrictedFloors },
+  { icon:'shieldAlert', label:'В блокировке', value: s.lockedDown, bad: true },
+])}
+
+<div id="el-tabs">${filterTabs('el', tabs, 'Все', 'setElFilter')}</div>
+<div class="cardgrid" id="el-grid" style="margin-top:16px"></div>
+`;
+
+renderShell('elevator', content);
+renderElevators();
+</script>
+</body>
+</html>

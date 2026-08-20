@@ -1,35 +1,113 @@
-<!doctype html><html lang="ru"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1"><title>Vadalex Access — Console</title><link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/@tabler/icons-webfont@3.31.0/tabler-icons.min.css"><link rel="stylesheet" href="styles.css"></head><body>
-<div id="app"></div>
+<!DOCTYPE html>
+<html lang="ru">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Дашборд — Vadalex Access</title>
+<link rel="stylesheet" href="assets/fonts.css">
+<link rel="stylesheet" href="assets/styles.css">
+</head>
+<body>
+<script src="assets/db.js"></script>
+<script src="assets/app.js"></script>
+<script>
+const DB = window.VDX_DB;
 
-<!-- Те же поля данных, что и в первом дизайне: stats/events/devices. Меняете тут — меняется весь экран. -->
-<script id="data" type="application/json">
-{
-  "brand":"Vadalex Access","building":"Vadalex Tower","initials":"ВР",
-  "stats":[
-    {"icon":"activity","label":"События сегодня","value":"1 248","trend":"↑ 12% к вчера"},
-    {"icon":"face-id","label":"Распознано лиц","value":"932","trend":"↑ 8% к вчера"},
-    {"icon":"shield-x","label":"Доступ запрещён","value":"23","trend":"↓ 3% к вчера"},
-    {"icon":"users","label":"Посетители","value":"48","trend":"5 сейчас на объекте"},
-    {"icon":"server-2","label":"Устройства онлайн","value":"48 / 50","trend":"2 офлайн"}
-  ],
-  "events":[
-    {"initials":"ВР","name":"Вадим Рыжкин","meta":"Охрана · Главный холл · Карта","status":"Доступ разрешён","kind":"ok","time":"09:42:00"},
-    {"initials":"МГ","name":"Мария Гомес","meta":"Ресепшн · Гараж · Лицо · 93.3%","status":"Доступ разрешён","kind":"ok","time":"09:42:41"},
-    {"initials":"ОП","name":"Омар Петров","meta":"Охрана · Бассейн · Лицо · 94.6%","status":"Доступ разрешён","kind":"ok","time":"09:41:22"},
-    {"initials":"ДС","name":"Джон Смит","meta":"Квартира 1204 · Спортзал · Лицо · 95.9%","status":"Доступ разрешён","kind":"ok","time":"09:40:03"},
-    {"initials":"ЭБ","name":"Эмма Браун","meta":"Квартира 1007 · Служебный вход · Лицо · 97.2%","status":"Доступ запрещён","kind":"bad","time":"09:40:44"},
-    {"initials":"?","name":"Неизвестный человек","meta":"Северный лифт · Лицо","status":"Лицо не распознано","kind":"warn","time":"09:39:25"}
-  ],
-  "devices":[
-    {"name":"Считыватель · Главный холл","ip":"192.168.10.21","status":"Онлайн","kind":"ok"},
-    {"name":"Считыватель · Гараж","ip":"192.168.10.22","status":"Онлайн","kind":"ok"},
-    {"name":"Считыватель · Бассейн","ip":"192.168.10.23","status":"Онлайн","kind":"ok"},
-    {"name":"Контроллер · Спортзал","ip":"192.168.10.24","status":"Онлайн","kind":"ok"},
-    {"name":"Считыватель · Служебный вход","ip":"192.168.10.25","status":"Нужна синхр.","kind":"warn"},
-    {"name":"Считыватель · Северный лифт","ip":"192.168.10.26","status":"Офлайн","kind":"bad"}
-  ]
+function eventRow(e) {
+  const cls = tagClass(e.result);
+  return `<div class="row">
+    <span class="person ${cls==='bad'?'bad':cls==='warn'?'warn':''}">${e.initials}</span>
+    <div class="info">
+      <div class="name">${e.person} ${e.unit ? `<span>${e.unit}</span>` : ''}</div>
+      <div class="meta">
+        <i>${svg('doors')}${e.door}</i>
+        <i>${svg('scanFace')}${e.credential==='лицо'?'Лицо':'Карта'}</i>
+        ${e.confidence ? `<i>Увер. ${e.confidence}%</i>` : ''}
+      </div>
+    </div>
+    <div class="result">
+      <span class="tag ${cls}">${e.result}</span>
+      <span class="time">${e.time}</span>
+    </div>
+  </div>`;
 }
-</script>
 
-<script src="app.js"></script>
-</body></html>
+function deviceRow(d) {
+  const cls = tagClass(d.status);
+  return `<div class="row device">
+    <div class="left">
+      <span class="dot ${cls==='bad'?'bad':cls==='warn'?'warn':''}"></span>
+      <div class="info">
+        <div class="name">${d.name}</div>
+        <div class="meta"><i>${d.ip}</i></div>
+      </div>
+    </div>
+    <span class="tag ${cls}">${d.status}</span>
+  </div>`;
+}
+
+const dash = DB.dashboard;
+const content = `
+<div class="pagehead">
+  <div>
+    <div class="eyebrow">Vadalex Tower · демо-аккаунт</div>
+    <h1>Доброе утро</h1>
+    <p>Вот что сейчас происходит с вашей системой контроля доступа.</p>
+  </div>
+  <button class="btn">${svg('penLine')}Новая запись</button>
+</div>
+
+<div class="health">
+  <div class="health-main">
+    <span class="ic">${svg('circleCheck')}</span>
+    <div>
+      <div class="eyebrow">Статус системы</div>
+      <strong>Все системы в норме</strong>
+      <div class="sub">Проверка: ${DB.system.lastCheck}</div>
+    </div>
+  </div>
+  <div class="metrics">
+    <span><span class="dot"></span><b>${DB.system.devices.online}</b> устройств онлайн</span>
+    <span><span class="dot bad"></span><b>${DB.system.devices.offline}</b> офлайн</span>
+    <span><span class="dot"></span><b>${dash.doorsOnline}</b> дверей онлайн</span>
+    <span><span class="dot warn"></span><b>${dash.doorsNeedAttention}</b> требуют внимания</span>
+  </div>
+  <a class="btn outline" href="system.html">Состояние системы ${svg('arrowUpRight')}</a>
+</div>
+
+<div class="stats">
+  <div class="stat"><span class="ic">${svg('activity')}</span><div class="eyebrow">Событий сегодня</div><strong>${dash.accessEventsToday.toLocaleString('ru-RU')}</strong></div>
+  <div class="stat"><span class="ic">${svg('scanFace')}</span><div class="eyebrow">Распознано лиц</div><strong>${dash.faceRecognitionsToday.toLocaleString('ru-RU')}</strong></div>
+  <div class="stat"><span class="ic bad">${svg('shieldAlert')}</span><div class="eyebrow">Доступ запрещён</div><strong>${dash.accessDeniedToday}</strong></div>
+  <div class="stat"><span class="ic">${svg('visitors')}</span><div class="eyebrow">Посетители</div><strong>${dash.visitorsToday}</strong></div>
+  <div class="stat"><span class="ic">${svg('devices')}</span><div class="eyebrow">Устройств онлайн</div><strong>${dash.devicesOnlineFraction.replace('/',' / ')}</strong></div>
+</div>
+
+<div class="grid2">
+  <section class="panel">
+    <div class="panel-head">
+      <div><h2>Последние события доступа</h2><p>Активность по всем дверям</p></div>
+      <a href="live-events.html">Все события ${svg('arrowRight')}</a>
+    </div>
+    <div class="rows">${DB.events.map(eventRow).join('')}</div>
+  </section>
+  <section class="panel">
+    <div class="panel-head">
+      <div><h2>Устройства</h2><p>Считыватели и контроллеры</p></div>
+      <a href="devices.html">Все ${svg('arrowRight')}</a>
+    </div>
+    <div class="rows">${DB.devices.map(deviceRow).join('')}</div>
+  </section>
+</div>
+
+<div class="quick">
+  <a class="qcard" href="people.html"><span class="ic">${svg('userPlus')}</span><span><b>Добавить человека</b><small>Регистрация лица и доступа</small></span><span class="go">${svg('arrowUpRight')}</span></a>
+  <a class="qcard" href="doors.html"><span class="ic">${svg('doorOpen2')}</span><span><b>Открыть дверь</b><small>Удалённая разблокировка</small></span><span class="go">${svg('arrowUpRight')}</span></a>
+  <a class="qcard" href="live-events.html"><span class="ic">${svg('pulse')}</span><span><b>Живые события</b><small>Мониторинг в реальном времени</small></span><span class="go">${svg('arrowUpRight')}</span></a>
+</div>
+`;
+
+renderShell('dashboard', content);
+</script>
+</body>
+</html>

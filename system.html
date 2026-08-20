@@ -1,0 +1,94 @@
+<!DOCTYPE html>
+<html lang="ru">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Система — Vadalex Access</title>
+<link rel="stylesheet" href="assets/fonts.css">
+<link rel="stylesheet" href="assets/styles.css">
+</head>
+<body>
+<script src="assets/db.js"></script>
+<script src="assets/app.js"></script>
+<script>
+const DB = window.VDX_DB;
+
+function healthCard(icon, title, statusLabel, statusCls, sub, facts) {
+  return `<div class="entity">
+    <div class="entity-head">
+      <div style="display:flex;align-items:center;gap:10px">
+        <span class="ic" style="background:var(--brand-soft);color:var(--brand);width:32px;height:32px;border-radius:8px;display:grid;place-items:center">${svg(icon)}</span>
+        <div><h3>${title}</h3><p>${sub}</p></div>
+      </div>
+      <span class="tag ${statusCls}">${statusLabel}</span>
+    </div>
+    <div class="entity-facts">${facts.map(f => `<div>${f[0]}: <b>${f[1]}</b></div>`).join('')}</div>
+  </div>`;
+}
+
+function runCheck() { toast('Проверка системы запущена'); }
+function backupNow() { toast('Резервное копирование запущено'); }
+function restoreBackup() { openModal('Восстановить из резервной копии', `<p class="desc">Загрузите файл резервной копии, чтобы восстановить конфигурацию, людей и шаблоны лиц.</p>
+  ${fField('Файл резервной копии', fInput('rb-file','','backup-2026-08-19.zip'), {full:true})}`, {});
+  document.getElementById('modal-root').querySelector('.modal').insertAdjacentHTML('beforeend', modalFooter(`
+    <button class="btn outline" onclick="closeModal()">Отмена</button>
+    <button class="btn" onclick="closeModal(); toast('Восстановление запущено')">Восстановить</button>
+  `));
+}
+function downloadBackup() { toast('Скачивание резервной копии началось'); }
+
+const sys = DB.system;
+const content = `
+${pageHead('Vadalex Tower · демо-аккаунт', 'Состояние системы', 'Одна страница, которая говорит, справляется ли система со своей работой.',
+  `<button class="btn" onclick="runCheck()">${svg('refresh')}Запустить проверку</button>`)}
+
+<div class="health" style="margin-bottom:20px">
+  <div class="health-main">
+    <span class="ic">${svg('circleCheck')}</span>
+    <div><div class="eyebrow">Общий статус</div><strong>Все системы в норме</strong><div class="sub">Проверка: ${sys.lastCheck}</div></div>
+  </div>
+  <div class="metrics">
+    <span><span class="dot"></span>Локальный режим — интернет не требуется для работы контроля доступа</span>
+  </div>
+</div>
+
+<div class="cardgrid">
+  ${healthCard('devices', 'Устройства', sys.devices.offline > 0 ? 'Внимание' : 'В норме', sys.devices.offline > 0 ? 'warn' : 'ok',
+    `${sys.devices.offline} офлайн, ${sys.doors.needAttention} дверей требуют внимания`,
+    [['Всего', sys.devices.total], ['Онлайн', sys.devices.online], ['Офлайн', sys.devices.offline]])}
+  ${healthCard('server', 'Приложение', 'Работает', 'ok', 'Локальный веб-сервис отвечает нормально',
+    [['Аптайм', '14 дней'], ['Версия', '1.8.2']])}
+  ${healthCard('database', 'База данных', 'Работает', 'ok', 'Локальная БД в порядке, задержек репликации нет',
+    [['Размер', '4.2 ГБ'], ['Запросов/с', '38']])}
+  ${healthCard('doors', 'Двери', sys.doors.needAttention > 0 ? 'Внимание' : 'В норме', sys.doors.needAttention > 0 ? 'warn' : 'ok',
+    `${sys.doors.needAttention} двери требуют внимания`,
+    [['Онлайн', 46], ['Всего', 48]])}
+  ${healthCard('server', 'Хранилище', 'Работает', 'ok', 'Хранилище событий и снимков в пределах нормы',
+    [['Занято', '312 ГБ'], ['Свободно', '688 ГБ']])}
+  ${healthCard('database', 'Резервное копирование', 'Работает', 'ok', 'Последняя копия успешно завершена сегодня в 2:00',
+    [['Последняя', 'Сегодня 2:00'], ['Следующая', 'Завтра 2:00']])}
+</div>
+
+<section class="panel" style="margin-top:20px">
+  <div class="panel-head"><div><h2>Резервное копирование и восстановление</h2><p>Локальные копии конфигурации, людей и шаблонов лиц</p></div></div>
+  <div style="padding:16px 18px;display:flex;flex-wrap:wrap;gap:20px;align-items:center">
+    <div class="detail-list" style="flex:1;min-width:220px">
+      <div class="detail-row"><span>Последняя копия</span><span>Сегодня 2:00</span></div>
+      <div class="detail-row"><span>Статус</span><span>Успешно</span></div>
+      <div class="detail-row"><span>Следующая копия</span><span>Завтра 2:00</span></div>
+      <div class="detail-row"><span>Размер</span><span>1.8 ГБ</span></div>
+      <div class="detail-row"><span>Расположение</span><span class="mono">/var/vadalex/backups</span></div>
+    </div>
+    <div style="display:flex;gap:8px;flex-wrap:wrap">
+      <button class="btn" onclick="backupNow()">${svg('database')}Создать копию сейчас</button>
+      <button class="btn outline" onclick="restoreBackup()">${svg('upload')}Восстановить</button>
+      <button class="btn outline" onclick="downloadBackup()">${svg('download')}Скачать</button>
+    </div>
+  </div>
+</section>
+`;
+
+renderShell('system', content);
+</script>
+</body>
+</html>

@@ -1,0 +1,145 @@
+<!DOCTYPE html>
+<html lang="ru">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Домофон — Vadalex Access</title>
+<link rel="stylesheet" href="assets/fonts.css">
+<link rel="stylesheet" href="assets/styles.css">
+</head>
+<body>
+<script src="assets/db.js"></script>
+<script src="assets/app.js"></script>
+<script>
+const DB = window.VDX_DB;
+let icTab = 'Станции';
+let icFilter = 'Все';
+
+function stationCard(s) {
+  const statCls = tagClass(s.status);
+  const stateCls = s.state === 'Звонит' ? 'warn' : (s.state === 'В разговоре' ? 'ok' : (s.state === 'Офлайн' ? 'bad' : 'warn'));
+  return `<div class="entity">
+    <div class="entity-head">
+      <div><h3>${s.name}</h3><p>${s.type} · SIP ${s.sip}</p></div>
+      <div class="entity-badges"><span class="tag ${statCls}">${s.status}</span></div>
+    </div>
+    <div class="entity-badges">
+      <span class="tag ${s.video ? 'ok' : 'warn'}">${s.video ? 'Видео' : 'Только аудио'}</span>
+      <span class="tag ${stateCls}">${s.state}</span>
+    </div>
+    <div class="entity-facts">
+      <div>Привязана к двери: <b>${s.linkedDoor}</b></div>
+      <div>Группа звонка: <b>${s.ringGroup}</b> · Пропущено сегодня: <b>${s.missedToday}</b></div>
+    </div>
+    <div class="entity-actions">
+      <button onclick="stationAction('${s.name}','call')">${svg('phone')}Позвонить</button>
+      <button onclick="stationAction('${s.name}','open')">${svg('doorOpen2')}Открыть дверь</button>
+      <button onclick="stationAction('${s.name}','dnd')">${svg('phoneOff')}Не беспокоить</button>
+      <button onclick="openStationEdit('${s.name}')">${svg('penLine')}Изменить</button>
+      <button class="danger" onclick="deleteStation('${s.name}')">${svg('trash')}</button>
+    </div>
+  </div>`;
+}
+
+function callLogRow(c) {
+  return `<tr><td>${c.station}</td><td>${c.caller}</td><td><span class="tag ${c.result==='Отвечен'?'ok':'bad'}">${c.result}</span></td><td>${c.operator}</td><td>${c.time}</td></tr>`;
+}
+
+function renderIntercom() {
+  const grid = document.getElementById('ic-grid');
+  const addBtn = document.getElementById('ic-add-btn');
+  if (icTab === 'Станции') {
+    let rows = DB.intercomStations;
+    if (icFilter !== 'Все') rows = rows.filter(s => s.status === icFilter || s.state === icFilter);
+    grid.innerHTML = `<div class="cardgrid">${rows.length ? rows.map(stationCard).join('') : emptyState('Станций по этому фильтру нет.')}</div>`;
+    addBtn.style.display = '';
+  } else {
+    grid.innerHTML = `<div class="tblwrap"><table class="dt"><thead><tr><th>Станция</th><th>Звонящий</th><th>Результат</th><th>Оператор</th><th>Время</th></tr></thead>
+      <tbody>${DB.intercomCallLog.map(callLogRow).join('')}</tbody></table></div>`;
+    addBtn.style.display = 'none';
+  }
+}
+function setIcTab(v) { icTab = v; document.querySelectorAll('#ic-tabs .ftab').forEach(b => b.classList.toggle('active', b.textContent === v)); renderIntercom(); }
+function setIcFilter(v) { icFilter = v; document.querySelectorAll('#ic-filter .ftab').forEach(b => b.classList.toggle('active', b.textContent === v)); renderIntercom(); }
+
+function stationAction(name, action) {
+  const s = DB.intercomStations.find(x => x.name === name);
+  if (!s) return;
+  if (action === 'call') { s.state = 'В разговоре'; toast(`Звонок на «${name}»`); }
+  if (action === 'open') toast(`Дверь у «${name}» открыта`);
+  if (action === 'dnd') { s.state = 'Не беспокоить'; toast(`«${name}»: режим «Не беспокоить»`); }
+  renderIntercom();
+}
+function openAddStation() {
+  openModal('Добавить станцию', `
+    <div class="formgrid">
+      ${fField('Название', fInput('ns-name','','Станция паркинга'))}
+      ${fField('Тип', fSelect('ns-type', ['Дверная станция','Панель лобби','Станция ворот','Внутренний монитор'], 'Дверная станция'))}
+      ${fField('SIP', fInput('ns-sip','','2007'))}
+      ${fField('Привязанная дверь', fSelect('ns-door', DB.doors.map(d=>d.name), DB.doors[0].name))}
+    </div>
+  `);
+  document.getElementById('modal-root').querySelector('.modal').insertAdjacentHTML('beforeend', modalFooter(`
+    <button class="btn outline" onclick="closeModal()">Отмена</button>
+    <button class="btn" onclick="saveNewStation()">Добавить</button>
+  `));
+}
+function saveNewStation() {
+  const name = document.getElementById('ns-name').value.trim() || 'Новая станция';
+  DB.intercomStations.unshift({ name, type: document.getElementById('ns-type').value, sip: document.getElementById('ns-sip').value || '0000',
+    status: 'Онлайн', video: true, state: 'Ожидание', linkedDoor: document.getElementById('ns-door').value, ringGroup: 'Ресепшн', missedToday: 0 });
+  closeModal(); renderIntercom(); toast(`«${name}» добавлена`);
+}
+function openStationEdit(name) {
+  const s = DB.intercomStations.find(x => x.name === name);
+  if (!s) return;
+  openModal(`Изменить: ${s.name}`, `
+    <div class="formgrid">
+      ${fField('Название', fInput('es-name', s.name))}
+      ${fField('Статус', fSelect('es-status', ['Онлайн','Офлайн'], s.status))}
+      ${fField('Группа звонка', fInput('es-ring', s.ringGroup))}
+    </div>
+  `);
+  document.getElementById('modal-root').querySelector('.modal').insertAdjacentHTML('beforeend', modalFooter(`
+    <button class="btn outline" onclick="closeModal()">Отмена</button>
+    <button class="btn" onclick="saveStationEdit('${name}')">Сохранить</button>
+  `));
+}
+function saveStationEdit(oldName) {
+  const s = DB.intercomStations.find(x => x.name === oldName);
+  if (!s) return;
+  s.name = document.getElementById('es-name').value.trim() || s.name;
+  s.status = document.getElementById('es-status').value;
+  s.ringGroup = document.getElementById('es-ring').value;
+  closeModal(); renderIntercom(); toast('Изменения сохранены');
+}
+function deleteStation(name) {
+  const idx = DB.intercomStations.findIndex(x => x.name === name);
+  if (idx > -1) DB.intercomStations.splice(idx, 1);
+  renderIntercom(); toast(`«${name}» удалена`);
+}
+
+const s = DB.intercomSummary;
+const tabTabs = ['Станции','Журнал звонков'];
+const filterOpts = ['Все','Онлайн','Офлайн','Звонит','В разговоре','Не беспокоить'];
+const content = `
+${pageHead('Vadalex Tower · демо-аккаунт', 'Домофон', 'Видеопанели, группы вызова и удалённое открытие двери из одной консоли.',
+  `<button class="btn" id="ic-add-btn" onclick="openAddStation()">${svg('plus')}Добавить станцию</button>`)}
+
+${statRow([
+  { icon:'intercom', label:'Станции', value: s.total },
+  { icon:'circleCheck', label:'Онлайн', value: s.online },
+  { icon:'phone', label:'Активные звонки', value: s.activeCalls },
+  { icon:'phoneOff', label:'Пропущено сегодня', value: s.missedToday, bad: true },
+])}
+
+<div id="ic-tabs">${filterTabs('ic', tabTabs, 'Станции', 'setIcTab')}</div>
+<div id="ic-filter" style="margin-top:10px">${filterTabs('icf', filterOpts, 'Все', 'setIcFilter')}</div>
+<div id="ic-grid" style="margin-top:16px"></div>
+`;
+
+renderShell('intercom', content);
+renderIntercom();
+</script>
+</body>
+</html>

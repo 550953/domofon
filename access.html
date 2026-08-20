@@ -1,0 +1,122 @@
+<!DOCTYPE html>
+<html lang="ru">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Доступ — Vadalex Access</title>
+<link rel="stylesheet" href="assets/fonts.css">
+<link rel="stylesheet" href="assets/styles.css">
+</head>
+<body>
+<script src="assets/db.js"></script>
+<script src="assets/app.js"></script>
+<script>
+const DB = window.VDX_DB;
+let accessTab = 'Группы доступа';
+
+function groupCard(g) {
+  return `<div class="entity">
+    <div class="entity-head">
+      <div><h3>${g.name}</h3><p>${g.schedule}</p></div>
+      <button class="iconbtn" onclick="deleteGroup('${g.name.replace(/'/g,"")}')">${svg('trash')}</button>
+    </div>
+    <div class="entity-facts">
+      <div><b>${g.peopleCount.toLocaleString('ru-RU')}</b> человек · <b>${g.doorsCount}</b> дверей</div>
+    </div>
+    <div class="entity-actions">
+      <button onclick="openEditGroup('${g.name.replace(/'/g,"")}')">${svg('penLine')}Изменить</button>
+    </div>
+  </div>`;
+}
+
+function scheduleCard(s) {
+  return `<div class="entity"><div class="entity-head"><div><h3>${s.name}</h3><p>${s.desc}</p></div></div></div>`;
+}
+function holidayCard(h) {
+  return `<div class="entity"><div class="entity-head"><div><h3>${h.name}</h3><p>${h.date}</p></div>
+    <button class="iconbtn" onclick="toast('Праздник удалён')">${svg('trash')}</button></div></div>`;
+}
+
+function renderAccess() {
+  const grid = document.getElementById('access-grid');
+  const addBtn = document.getElementById('access-add-btn');
+  if (accessTab === 'Группы доступа') {
+    grid.innerHTML = DB.accessGroups.map(groupCard).join('');
+    addBtn.textContent = ''; addBtn.innerHTML = `${svg('plus')}Создать группу доступа`;
+    addBtn.onclick = openCreateGroup;
+  } else if (accessTab === 'Группы лифтов') {
+    grid.innerHTML = DB.elevators.slice(0,4).map(e => `<div class="entity"><div class="entity-head"><div><h3>${e.name} — группа</h3><p>${e.mode}</p></div></div></div>`).join('');
+    addBtn.innerHTML = `${svg('plus')}Создать группу лифтов`;
+    addBtn.onclick = () => toast('Демо: создание группы лифтов');
+  } else if (accessTab === 'Расписания') {
+    grid.innerHTML = DB.schedules.map(scheduleCard).join('');
+    addBtn.innerHTML = `${svg('plus')}Создать расписание`;
+    addBtn.onclick = () => toast('Демо: создание расписания');
+  } else {
+    grid.innerHTML = DB.holidays.map(holidayCard).join('');
+    addBtn.innerHTML = `${svg('plus')}Добавить праздник`;
+    addBtn.onclick = () => toast('Демо: добавление праздника');
+  }
+}
+
+function setAccessTab(v) { accessTab = v; document.querySelectorAll('#access-tabs .ftab').forEach(b => b.classList.toggle('active', b.textContent === v)); renderAccess(); }
+
+function openCreateGroup() {
+  openModal('Создать группу доступа', `
+    <div class="formgrid">
+      ${fField('Название', fInput('ag-name','','Например, Служба безопасности'))}
+      ${fField('Расписание', fSelect('ag-sched', DB.schedules.map(s=>s.name), '24/7'))}
+      ${fField('Описание', fTextarea('ag-desc','','Кто входит в эту группу и зачем.'), {full:true})}
+    </div>
+  `);
+  document.getElementById('modal-root').querySelector('.modal').insertAdjacentHTML('beforeend', modalFooter(`
+    <button class="btn outline" onclick="closeModal()">Отмена</button>
+    <button class="btn" onclick="saveNewGroup()">Создать</button>
+  `));
+}
+function saveNewGroup() {
+  const name = document.getElementById('ag-name').value.trim() || 'Новая группа';
+  DB.accessGroups.unshift({ name, peopleCount: 0, doorsCount: 0, schedule: document.getElementById('ag-sched').value });
+  closeModal(); renderAccess(); toast(`Группа «${name}» создана`);
+}
+function openEditGroup(name) {
+  const g = DB.accessGroups.find(x => x.name === name);
+  if (!g) return;
+  openModal(`Изменить: ${g.name}`, `
+    <div class="formgrid">
+      ${fField('Название', fInput('eg-name', g.name))}
+      ${fField('Расписание', fSelect('eg-sched', DB.schedules.map(s=>s.name), g.schedule))}
+    </div>
+  `);
+  document.getElementById('modal-root').querySelector('.modal').insertAdjacentHTML('beforeend', modalFooter(`
+    <button class="btn outline" onclick="closeModal()">Отмена</button>
+    <button class="btn" onclick="saveGroupEdit('${name.replace(/'/g,"")}')">Сохранить</button>
+  `));
+}
+function saveGroupEdit(oldName) {
+  const g = DB.accessGroups.find(x => x.name === oldName);
+  if (!g) return;
+  g.name = document.getElementById('eg-name').value.trim() || g.name;
+  g.schedule = document.getElementById('eg-sched').value;
+  closeModal(); renderAccess(); toast('Группа обновлена');
+}
+function deleteGroup(name) {
+  const idx = DB.accessGroups.findIndex(x => x.name === name);
+  if (idx > -1) DB.accessGroups.splice(idx, 1);
+  renderAccess(); toast('Группа удалена');
+}
+
+const tabs = ['Группы доступа','Группы лифтов','Расписания','Праздники'];
+const content = `
+${pageHead('Vadalex Tower · демо-аккаунт', 'Доступ', 'Решайте, кто и какие двери и этажи может открывать, и когда.',
+  `<button class="btn" id="access-add-btn" onclick="openCreateGroup()"></button>`)}
+
+<div id="access-tabs">${filterTabs('access', tabs, 'Группы доступа', 'setAccessTab')}</div>
+<div class="cardgrid" id="access-grid" style="margin-top:16px"></div>
+`;
+
+renderShell('access', content);
+renderAccess();
+</script>
+</body>
+</html>
