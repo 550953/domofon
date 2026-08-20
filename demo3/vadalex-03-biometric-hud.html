@@ -1,0 +1,232 @@
+<!doctype html>
+<html lang="ru">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width,initial-scale=1">
+<title>Vadalex — Биометрический HUD</title>
+<link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/@tabler/icons-webfont@3.31.0/tabler-icons.min.css">
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link href="https://fonts.googleapis.com/css2?family=Sora:wght@400;500;600;700;800&family=IBM+Plex+Mono:wght@400;500;600&display=swap" rel="stylesheet">
+<style>
+:root{
+  --bg:#05060c; --panel:#0b0e1a; --panel2:#0e1220; --line:#1c2138;
+  --ink:#eef0fb; --muted:#6a708f;
+  --cyan:#3ff0ff; --violet:#b26bff; --amber:#ffcd6b; --red:#ff5d7a;
+}
+*{box-sizing:border-box}
+body{margin:0;background:var(--bg);color:var(--ink);font:14px/1.5 Sora,sans-serif;-webkit-font-smoothing:antialiased}
+.mono{font-family:"IBM Plex Mono",monospace}
+a{color:inherit;text-decoration:none}
+body{
+  background-image:
+    radial-gradient(circle at 20% 0%, rgba(178,107,255,.10), transparent 45%),
+    radial-gradient(circle at 90% 30%, rgba(63,240,255,.08), transparent 40%),
+    linear-gradient(var(--bg),var(--bg));
+}
+
+.top{display:flex;align-items:center;padding:20px 28px 0;gap:12px}
+.top .mark{width:36px;height:36px;border-radius:10px;background:linear-gradient(150deg,var(--violet),var(--cyan));
+  display:grid;place-items:center;font-weight:800;font-size:13px;color:#050311}
+.top .brand{font-weight:700;font-size:15px}
+.top .brand small{display:block;color:var(--muted);font-size:9.5px;text-transform:uppercase;letter-spacing:.1em;font-weight:500}
+.top .right{margin-left:auto;display:flex;align-items:center;gap:12px}
+.badge-live{display:flex;align-items:center;gap:7px;font:600 10.5px "IBM Plex Mono",monospace;color:var(--cyan);
+  background:#3ff0ff14;border:1px solid #3ff0ff33;padding:6px 11px;border-radius:100px;text-transform:uppercase;letter-spacing:.06em}
+.badge-live i{width:6px;height:6px;border-radius:50%;background:var(--cyan);animation:blk 1.4s infinite}
+@keyframes blk{50%{opacity:.2}}
+.top .avatar{width:34px;height:34px;border-radius:10px;background:var(--panel2);border:1px solid var(--line);
+  display:grid;place-items:center;font:700 11px "IBM Plex Mono",monospace}
+
+.wrap{max-width:1180px;margin:0 auto;padding:22px 28px 110px}
+
+/* HERO — active scan */
+.hero{display:grid;grid-template-columns:290px 1fr;gap:26px;background:var(--panel);border:1px solid var(--line);
+  border-radius:22px;padding:26px;margin-bottom:24px;position:relative;overflow:hidden}
+.hero::before{content:"";position:absolute;inset:0;background:
+  linear-gradient(180deg,transparent,transparent 95%,rgba(63,240,255,.5) 100%);
+  opacity:.5;pointer-events:none}
+.scanframe{width:238px;height:238px;position:relative;margin:0 auto}
+.scanframe .ring{position:absolute;inset:0;border-radius:50%}
+.scanframe svg{width:100%;height:100%;transform:rotate(-90deg)}
+.scanframe .avatar-c{position:absolute;inset:22px;border-radius:50%;background:var(--panel2);
+  display:grid;place-items:center;font:800 34px Sora;color:var(--muted);overflow:hidden;border:1px solid var(--line)}
+.corner{position:absolute;width:22px;height:22px;border-color:var(--cyan);border-style:solid;opacity:.9}
+.c1{top:-2px;left:-2px;border-width:2px 0 0 2px;border-radius:6px 0 0 0}
+.c2{top:-2px;right:-2px;border-width:2px 2px 0 0;border-radius:0 6px 0 0}
+.c3{bottom:-2px;left:-2px;border-width:0 0 2px 2px;border-radius:0 0 0 6px}
+.c4{bottom:-2px;right:-2px;border-width:0 2px 2px 0;border-radius:0 0 6px 0}
+.scanline{position:absolute;left:8%;right:8%;height:2px;background:linear-gradient(90deg,transparent,var(--cyan),transparent);
+  animation:scanmove 2.4s ease-in-out infinite}
+@keyframes scanmove{0%,100%{top:14%}50%{top:84%}}
+.confpct{position:absolute;bottom:-6px;left:50%;transform:translateX(-50%);background:var(--panel);
+  border:1px solid var(--line);border-radius:100px;padding:5px 13px;font:700 12px "IBM Plex Mono",monospace;color:var(--cyan)}
+
+.hero-info{display:flex;flex-direction:column;justify-content:center}
+.hero-info .eyebrow{font:600 10px "IBM Plex Mono",monospace;color:var(--cyan);text-transform:uppercase;letter-spacing:.1em;margin-bottom:8px}
+.hero-info h1{font-size:26px;margin:0 0 6px;font-weight:700}
+.hero-info p{color:var(--muted);margin:0 0 18px;font-size:12.5px;max-width:420px}
+.decision{display:inline-flex;align-items:center;gap:8px;padding:9px 16px;border-radius:10px;
+  background:#31d5c81a;color:#3ff0ff;border:1px solid #3ff0ff33;font-weight:700;font-size:12.5px;width:fit-content}
+.hero-stats{display:flex;gap:22px;margin-top:20px}
+.hero-stats div b{display:block;font:700 19px "IBM Plex Mono",monospace}
+.hero-stats div span{color:var(--muted);font-size:9.5px;text-transform:uppercase;letter-spacing:.06em}
+
+/* strip of recent scans as confidence rings */
+.section-head{display:flex;align-items:center;justify-content:space-between;margin:8px 0 14px}
+.section-head b{font-size:13.5px;font-weight:700}
+.section-head a{color:var(--cyan);font-size:11px;font-weight:600}
+.strip{display:flex;gap:16px;overflow-x:auto;padding-bottom:6px;margin-bottom:30px}
+.scard{flex:0 0 108px;text-align:center}
+.sring{width:76px;height:76px;margin:0 auto 8px;position:relative}
+.sring svg{width:100%;height:100%;transform:rotate(-90deg)}
+.sring .ini{position:absolute;inset:8px;border-radius:50%;background:var(--panel2);display:grid;place-items:center;
+  font:700 12px Sora;border:1px solid var(--line)}
+.scard b{display:block;font-size:11px;font-weight:600;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+.scard span{display:block;font:9.5px "IBM Plex Mono",monospace;color:var(--muted);margin-top:1px}
+
+.grid2{display:grid;grid-template-columns:1.3fr 1fr;gap:20px}
+
+/* network topology */
+.topo{background:var(--panel);border:1px solid var(--line);border-radius:18px;padding:20px}
+.topo-canvas{position:relative;height:230px;margin-top:10px}
+.node{position:absolute;display:flex;flex-direction:column;align-items:center;gap:6px}
+.node .dot{width:13px;height:13px;border-radius:50%;background:var(--cyan);box-shadow:0 0 0 4px #3ff0ff1a}
+.node.warn .dot{background:var(--amber);box-shadow:0 0 0 4px #ffcd6b1a}
+.node.bad .dot{background:var(--red);box-shadow:0 0 0 4px #ff5d7a1a}
+.node b{font-size:9.5px;font-weight:600;white-space:nowrap;background:var(--panel);padding:1px 5px;border-radius:4px}
+.node span{font:8.5px "IBM Plex Mono",monospace;color:var(--muted)}
+.topo-canvas svg.lines{position:absolute;inset:0;width:100%;height:100%}
+.hub{position:absolute;top:50%;left:50%;transform:translate(-50%,-50%);width:46px;height:46px;border-radius:50%;
+  background:linear-gradient(150deg,var(--violet),var(--cyan));display:grid;place-items:center;color:#050311;
+  font-size:18px}
+
+/* activity list, right col */
+.actlist{background:var(--panel);border:1px solid var(--line);border-radius:18px;padding:18px}
+.arow{display:flex;align-items:center;gap:10px;padding:9px 0;border-bottom:1px solid var(--line)}
+.arow:last-child{border:0}
+.arow .dt{width:6px;height:6px;border-radius:50%;background:var(--cyan);flex:0 0 auto}
+.arow.bad .dt{background:var(--red)}
+.arow.warn .dt{background:var(--amber)}
+.arow .t{flex:1;min-width:0}
+.arow .t b{display:block;font-size:11.5px;font-weight:600;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+.arow .t span{display:block;font-size:10px;color:var(--muted)}
+.arow .time{font:10px "IBM Plex Mono",monospace;color:var(--muted)}
+
+/* bottom dock */
+.dock{position:fixed;left:50%;bottom:20px;transform:translateX(-50%);display:flex;gap:4px;
+  background:rgba(11,14,26,.85);backdrop-filter:blur(14px);border:1px solid var(--line);border-radius:18px;
+  padding:8px;box-shadow:0 20px 50px rgba(0,0,0,.5)}
+.dock a{width:46px;height:46px;border-radius:13px;display:grid;place-items:center;color:var(--muted);font-size:19px}
+.dock a.active{background:linear-gradient(150deg,var(--violet),var(--cyan));color:#050311}
+
+@media(max-width:860px){.hero{grid-template-columns:1fr}.scanframe{width:180px;height:180px}.grid2{grid-template-columns:1fr}}
+</style>
+</head>
+<body>
+<div class="top">
+  <div class="mark">VX</div>
+  <div class="brand">Vadalex<small>Биометрический контроль</small></div>
+  <div class="right">
+    <div class="badge-live"><i></i> сканирование активно</div>
+    <div class="avatar">ВР</div>
+  </div>
+</div>
+
+<div class="wrap">
+  <div class="hero">
+    <div class="scanframe">
+      <div class="ring">
+        <svg viewBox="0 0 100 100">
+          <circle cx="50" cy="50" r="46" fill="none" stroke="#1c2138" stroke-width="4"/>
+          <circle cx="50" cy="50" r="46" fill="none" stroke="#3ff0ff" stroke-width="4" stroke-linecap="round"
+            stroke-dasharray="289" stroke-dashoffset="24"/>
+        </svg>
+      </div>
+      <div class="avatar-c">ДС</div>
+      <div class="corner c1"></div><div class="corner c2"></div><div class="corner c3"></div><div class="corner c4"></div>
+      <div class="scanline"></div>
+      <div class="confpct">95.9% совпадение</div>
+    </div>
+    <div class="hero-info">
+      <div class="eyebrow">Активное распознавание · Спортзал</div>
+      <h1>Джон Смит</h1>
+      <p>Квартира 1204 · последний проход 3 дня назад · профиль подтверждён, ограничений доступа нет.</p>
+      <div class="decision"><i class="ti ti-circle-check"></i> Доступ разрешён</div>
+      <div class="hero-stats">
+        <div><b>0.31с</b><span>время сканирования</span></div>
+        <div><b>932</b><span>распознаний сегодня</span></div>
+        <div><b>23</b><span>отказов сегодня</span></div>
+      </div>
+    </div>
+  </div>
+
+  <div class="section-head"><b>Последние сканирования</b><a>Все события →</a></div>
+  <div class="strip">
+    <div class="scard">
+      <div class="sring"><svg viewBox="0 0 100 100"><circle cx="50" cy="50" r="44" fill="none" stroke="#1c2138" stroke-width="6"/><circle cx="50" cy="50" r="44" fill="none" stroke="#3ff0ff" stroke-width="6" stroke-linecap="round" stroke-dasharray="276" stroke-dashoffset="14"/></svg><div class="ini">ВР</div></div>
+      <b>Вадим Р.</b><span>карта · 100%</span>
+    </div>
+    <div class="scard">
+      <div class="sring"><svg viewBox="0 0 100 100"><circle cx="50" cy="50" r="44" fill="none" stroke="#1c2138" stroke-width="6"/><circle cx="50" cy="50" r="44" fill="none" stroke="#3ff0ff" stroke-width="6" stroke-linecap="round" stroke-dasharray="276" stroke-dashoffset="19"/></svg><div class="ini">МГ</div></div>
+      <b>Мария Г.</b><span>лицо · 93.3%</span>
+    </div>
+    <div class="scard">
+      <div class="sring"><svg viewBox="0 0 100 100"><circle cx="50" cy="50" r="44" fill="none" stroke="#1c2138" stroke-width="6"/><circle cx="50" cy="50" r="44" fill="none" stroke="#3ff0ff" stroke-width="6" stroke-linecap="round" stroke-dasharray="276" stroke-dashoffset="15"/></svg><div class="ini">ОП</div></div>
+      <b>Омар П.</b><span>лицо · 94.6%</span>
+    </div>
+    <div class="scard">
+      <div class="sring"><svg viewBox="0 0 100 100"><circle cx="50" cy="50" r="44" fill="none" stroke="#1c2138" stroke-width="6"/><circle cx="50" cy="50" r="44" fill="none" stroke="#ff5d7a" stroke-width="6" stroke-linecap="round" stroke-dasharray="276" stroke-dashoffset="8"/></svg><div class="ini">ЭБ</div></div>
+      <b>Эмма Б.</b><span>лицо · отказ</span>
+    </div>
+    <div class="scard">
+      <div class="sring"><svg viewBox="0 0 100 100"><circle cx="50" cy="50" r="44" fill="none" stroke="#1c2138" stroke-width="6"/><circle cx="50" cy="50" r="44" fill="none" stroke="#ffcd6b" stroke-width="6" stroke-linecap="round" stroke-dasharray="276" stroke-dashoffset="200"/></svg><div class="ini">?</div></div>
+      <b>Неизв.</b><span>не опознан</span>
+    </div>
+    <div class="scard">
+      <div class="sring"><svg viewBox="0 0 100 100"><circle cx="50" cy="50" r="44" fill="none" stroke="#1c2138" stroke-width="6"/><circle cx="50" cy="50" r="44" fill="none" stroke="#3ff0ff" stroke-width="6" stroke-linecap="round" stroke-dasharray="276" stroke-dashoffset="12"/></svg><div class="ini">КЮ</div></div>
+      <b>Ким Ю.</b><span>карта · 100%</span>
+    </div>
+  </div>
+
+  <div class="grid2">
+    <div class="topo">
+      <div class="section-head" style="margin-top:0"><b>Сеть устройств</b><a>Все →</a></div>
+      <div class="topo-canvas">
+        <svg class="lines" viewBox="0 0 100 100" preserveAspectRatio="none">
+          <line x1="50" y1="50" x2="18" y2="18" stroke="#1c2138" stroke-width="1"/>
+          <line x1="50" y1="50" x2="82" y2="18" stroke="#1c2138" stroke-width="1"/>
+          <line x1="50" y1="50" x2="14" y2="55" stroke="#1c2138" stroke-width="1"/>
+          <line x1="50" y1="50" x2="86" y2="55" stroke="#1c2138" stroke-width="1"/>
+          <line x1="50" y1="50" x2="30" y2="88" stroke="#1c2138" stroke-width="1"/>
+          <line x1="50" y1="50" x2="70" y2="88" stroke="#1c2138" stroke-width="1"/>
+        </svg>
+        <div class="hub"><i class="ti ti-server-2"></i></div>
+        <div class="node" style="top:6%;left:12%"><div class="dot"></div><b>Гл. холл</b><span>online</span></div>
+        <div class="node" style="top:6%;left:76%"><div class="dot"></div><b>Гараж</b><span>online</span></div>
+        <div class="node" style="top:46%;left:6%"><div class="dot"></div><b>Бассейн</b><span>online</span></div>
+        <div class="node" style="top:46%;left:82%"><div class="dot"></div><b>Спортзал</b><span>online</span></div>
+        <div class="node warn" style="top:82%;left:22%"><div class="dot"></div><b>Служ. вход</b><span>синхр.</span></div>
+        <div class="node bad" style="top:82%;left:64%"><div class="dot"></div><b>Сев. лифт</b><span>офлайн</span></div>
+      </div>
+    </div>
+    <div class="actlist">
+      <div class="section-head" style="margin-top:0"><b>Лента</b><a>Все →</a></div>
+      <div class="arow"><i class="dt"></i><div class="t"><b>Вадим Рыжкин</b><span>Главный холл · карта</span></div><div class="time">09:42:00</div></div>
+      <div class="arow"><i class="dt"></i><div class="t"><b>Мария Гомес</b><span>Гараж · лицо 93.3%</span></div><div class="time">09:42:41</div></div>
+      <div class="arow"><i class="dt"></i><div class="t"><b>Омар Петров</b><span>Бассейн · лицо 94.6%</span></div><div class="time">09:41:22</div></div>
+      <div class="arow bad"><i class="dt"></i><div class="t"><b>Эмма Браун</b><span>Служебный вход · отказано</span></div><div class="time">09:40:44</div></div>
+      <div class="arow warn"><i class="dt"></i><div class="t"><b>Неизвестный</b><span>Северный лифт · не опознан</span></div><div class="time">09:39:25</div></div>
+    </div>
+  </div>
+</div>
+
+<div class="dock">
+  <a class="active" title="Дашборд"><i class="ti ti-layout-dashboard"></i></a>
+  <a title="Люди"><i class="ti ti-users"></i></a>
+  <a title="Сканирование"><i class="ti ti-scan"></i></a>
+  <a title="Устройства"><i class="ti ti-cpu"></i></a>
+  <a title="Отчёты"><i class="ti ti-chart-donut-2"></i></a>
+  <a title="Настройки"><i class="ti ti-settings"></i></a>
+</div>
+</body>
+</html>

@@ -1,0 +1,159 @@
+<!doctype html>
+<html lang="ru">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width,initial-scale=1">
+<title>Vadalex — Журнал проходной</title>
+<link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/@tabler/icons-webfont@3.31.0/tabler-icons.min.css">
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link href="https://fonts.googleapis.com/css2?family=Fraunces:opsz,wght@9..144,500;9..144,600;9..144,700&family=Courier+Prime:wght@400;700&family=Inter:wght@400;500;600&display=swap" rel="stylesheet">
+<style>
+:root{
+  --paper:#edeee4; --paper2:#f6f6ef; --ink:#20261f; --sub:#6b7062; --rule:#c9cab8;
+  --green:#1f5c3f; --red:#9a3a30; --amber:#a97a1f;
+}
+*{box-sizing:border-box}
+body{margin:0;background:var(--paper);color:var(--ink);font:14px/1.5 Inter,sans-serif}
+.serif{font-family:Fraunces,serif}
+.type{font-family:"Courier Prime",monospace}
+a{color:inherit;text-decoration:none}
+
+/* subtle paper grain */
+body{background-image:
+  repeating-linear-gradient(0deg, rgba(0,0,0,.015) 0 1px, transparent 1px 3px);
+}
+
+header.top{background:var(--paper2);border-bottom:2px solid var(--ink);padding:0 30px}
+.topin{max-width:960px;margin:0 auto;display:flex;align-items:center;padding:16px 0;gap:14px}
+.wordmark{font:600 21px Fraunces,serif;letter-spacing:-.01em}
+.wordmark small{display:block;font:11px/1 "Courier Prime",monospace;color:var(--sub);letter-spacing:.05em;margin-top:2px}
+.tabs{margin-left:auto;display:flex;gap:2px}
+.tabs a{padding:8px 13px;font:12px "Courier Prime",monospace;color:var(--sub);border:1px solid transparent;border-bottom:0}
+.tabs a.active{background:var(--paper);border-color:var(--rule);border-radius:6px 6px 0 0;color:var(--ink);font-weight:700}
+.stamp-avatar{width:34px;height:34px;border:2px solid var(--ink);border-radius:50%;display:grid;place-items:center;
+  font:700 11px "Courier Prime",monospace}
+
+.page{max-width:960px;margin:0 auto;padding:34px 30px 70px;position:relative}
+/* perforated edge */
+.page::before{content:"";position:absolute;left:-1px;top:0;bottom:0;width:1px;
+  background-image:radial-gradient(circle,var(--paper2) 2px, transparent 2.2px);
+  background-size:1px 14px}
+
+.ledger-head{display:flex;justify-content:space-between;align-items:flex-end;
+  border-bottom:2px solid var(--ink);padding-bottom:14px;margin-bottom:22px}
+.ledger-head .l small{font:11px "Courier Prime",monospace;color:var(--sub);text-transform:uppercase;letter-spacing:.08em}
+.ledger-head h1{font:600 30px/1.1 Fraunces,serif;margin:5px 0 4px}
+.ledger-head .l p{margin:0;color:var(--sub);font-size:12px}
+.newentry{background:var(--ink);color:var(--paper2);padding:10px 16px;border-radius:3px;font:12px "Courier Prime",monospace;
+  font-weight:700;display:flex;align-items:center;gap:7px;white-space:nowrap}
+
+.summary{display:grid;grid-template-columns:repeat(5,1fr);gap:0;border:1px solid var(--ink);border-radius:4px;overflow:hidden;margin-bottom:26px}
+.summary div{padding:13px 14px;border-right:1px solid var(--rule)}
+.summary div:last-child{border-right:0}
+.summary .v{font:600 21px Fraunces,serif}
+.summary .k{font:9.5px "Courier Prime",monospace;text-transform:uppercase;color:var(--sub);letter-spacing:.05em;margin-top:2px}
+.summary .v.red{color:var(--red)}
+
+.section-lbl{display:flex;align-items:center;gap:10px;margin:30px 0 12px}
+.section-lbl b{font:600 14px Fraunces,serif}
+.section-lbl .rule{flex:1;border-top:1px dashed var(--rule)}
+
+.entries{border-top:1px solid var(--rule)}
+.entry{display:grid;grid-template-columns:56px 1fr auto 120px;gap:14px;align-items:center;
+  padding:13px 4px;border-bottom:1px solid var(--rule)}
+.entry .who{width:38px;height:38px;border-radius:50%;background:var(--paper2);border:1.5px solid var(--ink);
+  display:grid;place-items:center;font:700 11px "Courier Prime",monospace}
+.entry .name{font-weight:600;font-size:13px}
+.entry .meta{color:var(--sub);font-size:11px;margin-top:1px}
+.entry .time{font:12px "Courier Prime",monospace;color:var(--sub);text-align:right}
+.stamp{justify-self:end;font:700 10.5px "Courier Prime",monospace;text-transform:uppercase;letter-spacing:.06em;
+  padding:5px 11px;border:2px solid; border-radius:3px;transform:rotate(-3deg);position:relative}
+.stamp.ok{color:var(--green);border-color:var(--green)}
+.stamp.bad{color:var(--red);border-color:var(--red);transform:rotate(2deg)}
+.stamp.warn{color:var(--amber);border-color:var(--amber);transform:rotate(-1.5deg)}
+
+/* rolodex device cards */
+.cards{display:grid;grid-template-columns:repeat(3,1fr);gap:12px}
+.rcard{background:var(--paper2);border:1px solid var(--ink);border-radius:6px;padding:13px 14px;position:relative}
+.rcard::before{content:"";position:absolute;top:-1px;left:14px;width:34px;height:8px;background:var(--paper);
+  border:1px solid var(--ink);border-bottom:0;border-radius:3px 3px 0 0}
+.rcard b{display:block;font-size:12px;margin-bottom:3px}
+.rcard span{font:10.5px "Courier Prime",monospace;color:var(--sub)}
+.rcard .status{margin-top:9px;display:inline-block;font:9.5px "Courier Prime",monospace;text-transform:uppercase;
+  padding:3px 8px;border-radius:2px;letter-spacing:.05em}
+.rcard .status.ok{background:#e4ede6;color:var(--green)}
+.rcard .status.warn{background:#f2e8d4;color:var(--amber)}
+.rcard .status.bad{background:#f2ddd8;color:var(--red)}
+
+.quickrow{display:grid;grid-template-columns:repeat(3,1fr);gap:12px;margin-top:30px}
+.qcard{border:1.5px dashed var(--rule);border-radius:6px;padding:16px;text-align:center}
+.qcard i{font-size:20px;margin-bottom:8px;display:block}
+.qcard b{font:600 12.5px Fraunces,serif;display:block}
+.qcard small{color:var(--sub);font-size:10.5px}
+
+@media(max-width:760px){.summary{grid-template-columns:repeat(2,1fr)}.summary div:nth-child(2n){border-right:0}
+  .cards,.quickrow{grid-template-columns:1fr}.entry{grid-template-columns:44px 1fr;grid-template-areas:"who name" ". meta" "stamp stamp";}
+  .entry .time{display:none}.tabs{display:none}}
+</style>
+</head>
+<body>
+<header class="top">
+  <div class="topin">
+    <div class="wordmark">Vadalex<small>Журнал проходной</small></div>
+    <div class="tabs">
+      <a class="active">Сегодня</a>
+      <a>Люди</a>
+      <a>Доступ</a>
+      <a>Устройства</a>
+      <a>Отчёты</a>
+    </div>
+    <div class="stamp-avatar">ВР</div>
+  </div>
+</header>
+
+<div class="page">
+  <div class="ledger-head">
+    <div class="l">
+      <small>Vadalex Tower · запись №1248</small>
+      <h1>Журнал за 20 августа</h1>
+      <p>Все проходы через здание, зафиксированные системой распознавания лиц и картами доступа.</p>
+    </div>
+    <div class="newentry"><i class="ti ti-pencil-plus"></i> Новая запись</div>
+  </div>
+
+  <div class="summary">
+    <div><div class="v">1 248</div><div class="k">Событий</div></div>
+    <div><div class="v">932</div><div class="k">Лиц опознано</div></div>
+    <div><div class="v red">23</div><div class="k">Отказано</div></div>
+    <div><div class="v">48</div><div class="k">Гостей</div></div>
+    <div><div class="v">48/50</div><div class="k">Устройств онлайн</div></div>
+  </div>
+
+  <div class="section-lbl"><b>Последние проходы</b><span class="rule"></span></div>
+  <div class="entries">
+    <div class="entry"><div class="who">ВР</div><div><div class="name">Вадим Рыжкин</div><div class="meta">Охрана · Главный холл · карта</div></div><div class="stamp ok">Разрешено</div><div class="time">09:42:00</div></div>
+    <div class="entry"><div class="who">МГ</div><div><div class="name">Мария Гомес</div><div class="meta">Ресепшн · Гараж · лицо 93.3%</div></div><div class="stamp ok">Разрешено</div><div class="time">09:42:41</div></div>
+    <div class="entry"><div class="who">ОП</div><div><div class="name">Омар Петров</div><div class="meta">Охрана · Бассейн · лицо 94.6%</div></div><div class="stamp ok">Разрешено</div><div class="time">09:41:22</div></div>
+    <div class="entry"><div class="who">ДС</div><div><div class="name">Джон Смит</div><div class="meta">Кв. 1204 · Спортзал · лицо 95.9%</div></div><div class="stamp ok">Разрешено</div><div class="time">09:40:03</div></div>
+    <div class="entry"><div class="who">ЭБ</div><div><div class="name">Эмма Браун</div><div class="meta">Кв. 1007 · Служебный вход · лицо 97.2%</div></div><div class="stamp bad">Отказано</div><div class="time">09:40:44</div></div>
+    <div class="entry"><div class="who">?</div><div><div class="name">Неизвестный человек</div><div class="meta">Северный лифт · лицо</div></div><div class="stamp warn">Не опознан</div><div class="time">09:39:25</div></div>
+  </div>
+
+  <div class="section-lbl"><b>Картотека устройств</b><span class="rule"></span></div>
+  <div class="cards">
+    <div class="rcard"><b>Главный холл</b><span>192.168.10.21</span><br><span class="status ok">Онлайн</span></div>
+    <div class="rcard"><b>Гараж</b><span>192.168.10.22</span><br><span class="status ok">Онлайн</span></div>
+    <div class="rcard"><b>Бассейн</b><span>192.168.10.23</span><br><span class="status ok">Онлайн</span></div>
+    <div class="rcard"><b>Спортзал</b><span>192.168.10.24</span><br><span class="status ok">Онлайн</span></div>
+    <div class="rcard"><b>Служебный вход</b><span>192.168.10.25</span><br><span class="status warn">Нужна синхр.</span></div>
+    <div class="rcard"><b>Северный лифт</b><span>192.168.10.26</span><br><span class="status bad">Офлайн</span></div>
+  </div>
+
+  <div class="quickrow">
+    <div class="qcard"><i class="ti ti-user-plus"></i><b>Зарегистрировать человека</b><small>Внести в картотеку</small></div>
+    <div class="qcard"><i class="ti ti-door-enter"></i><b>Открыть дверь</b><small>Ручная разблокировка</small></div>
+    <div class="qcard"><i class="ti ti-notebook"></i><b>Полный журнал</b><small>Все записи за месяц</small></div>
+  </div>
+</div>
+</body>
+</html>

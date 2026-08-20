@@ -1,0 +1,247 @@
+<!doctype html>
+<html lang="ru">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width,initial-scale=1">
+<title>Vadalex — Пост охраны</title>
+<link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/@tabler/icons-webfont@3.31.0/tabler-icons.min.css">
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link href="https://fonts.googleapis.com/css2?family=IBM+Plex+Mono:wght@400;500;600;700&family=Inter:wght@400;500;600;700;800&display=swap" rel="stylesheet">
+<style>
+:root{
+  --bg:#080b10; --panel:#0d1219; --panel2:#0f151d; --line:#1a222c;
+  --ink:#e7ecf4; --muted:#5c6b80; --dim:#374355;
+  --amber:#ffb454; --teal:#31d5c8; --red:#ff5d5d; --violet:#8a7bff;
+}
+*{box-sizing:border-box}
+body{margin:0;background:var(--bg);color:var(--ink);font:14px/1.5 Inter,sans-serif;-webkit-font-smoothing:antialiased}
+.mono{font-family:"IBM Plex Mono",monospace}
+a{color:inherit;text-decoration:none}
+
+/* background texture */
+body::before{
+  content:"";position:fixed;inset:0;pointer-events:none;z-index:0;
+  background-image:radial-gradient(circle at 15% 10%, rgba(49,213,200,.05), transparent 40%),
+                    radial-gradient(circle at 85% 90%, rgba(255,180,84,.04), transparent 40%);
+}
+
+.shell{display:flex;min-height:100vh;position:relative;z-index:1}
+
+/* ultra-thin icon rail */
+.rail{width:58px;flex:0 0 58px;background:var(--panel);border-right:1px solid var(--line);
+  display:flex;flex-direction:column;align-items:center;padding:16px 0;gap:6px}
+.rail .mark{width:34px;height:34px;border-radius:9px;background:linear-gradient(155deg,var(--teal),#1c8a80);
+  display:grid;place-items:center;color:#041412;font-weight:800;font-size:13px;margin-bottom:18px}
+.rail a{width:38px;height:38px;border-radius:9px;display:grid;place-items:center;color:var(--dim);font-size:18px}
+.rail a.active{background:#31d5c81a;color:var(--teal)}
+.rail a:hover{color:var(--ink)}
+.rail .spacer{flex:1}
+.rail .pulse{width:8px;height:8px;border-radius:50%;background:var(--teal);box-shadow:0 0 0 0 rgba(49,213,200,.5);animation:pulse 2s infinite}
+@keyframes pulse{0%{box-shadow:0 0 0 0 rgba(49,213,200,.45)}70%{box-shadow:0 0 0 8px rgba(49,213,200,0)}100%{box-shadow:0 0 0 0 rgba(49,213,200,0)}}
+
+main{flex:1;min-width:0;display:flex;flex-direction:column}
+
+/* top strip */
+.topstrip{height:56px;border-bottom:1px solid var(--line);display:flex;align-items:center;
+  padding:0 22px;gap:22px;background:var(--panel)}
+.topstrip .site{font-weight:700;font-size:13px;letter-spacing:.01em}
+.topstrip .site small{display:block;color:var(--muted);font-size:10px;font-weight:500;margin-top:1px;text-transform:uppercase;letter-spacing:.08em}
+.chips{display:flex;gap:8px;margin-left:8px}
+.chip{display:flex;align-items:center;gap:6px;padding:5px 10px;border-radius:100px;background:var(--panel2);
+  border:1px solid var(--line);font-size:11px;color:var(--muted)}
+.chip b{color:var(--ink);font-weight:700}
+.chip.ok{color:var(--teal);border-color:#31d5c833}
+.clock{margin-left:auto;text-align:right}
+.clock .time{font-family:"IBM Plex Mono",monospace;font-size:20px;font-weight:600;letter-spacing:.02em}
+.clock .date{font-size:10px;color:var(--muted);text-transform:uppercase;letter-spacing:.08em}
+.avatar{width:32px;height:32px;border-radius:8px;background:var(--violet);display:grid;place-items:center;
+  font-size:11px;font-weight:700;margin-left:16px;color:#0a0714}
+
+.wrap{flex:1;display:grid;grid-template-columns:1.5fr 1fr;gap:1px;background:var(--line);overflow:hidden}
+
+/* floor map panel */
+.mappanel{background:var(--bg);padding:22px 26px;overflow:auto}
+.mappanel h1{font-size:15px;margin:0 0 2px;font-weight:700}
+.mappanel .sub{color:var(--muted);font-size:11px;margin-bottom:18px}
+
+.kpis{display:flex;gap:10px;margin-bottom:20px;flex-wrap:wrap}
+.kpi{background:var(--panel);border:1px solid var(--line);border-radius:10px;padding:11px 14px;min-width:110px}
+.kpi .n{font-family:"IBM Plex Mono",monospace;font-size:19px;font-weight:600}
+.kpi .l{color:var(--muted);font-size:9.5px;text-transform:uppercase;letter-spacing:.07em;margin-top:2px}
+.kpi.up .n{color:var(--teal)}
+.kpi.down .n{color:var(--red)}
+
+.floors{display:flex;flex-direction:column;gap:2px;border:1px solid var(--line);border-radius:12px;overflow:hidden}
+.floor{display:grid;grid-template-columns:70px 1fr;background:var(--panel)}
+.floor+.floor{border-top:1px solid var(--line)}
+.flabel{padding:14px 12px;border-right:1px solid var(--line);display:flex;flex-direction:column;justify-content:center}
+.flabel b{font-size:12px}
+.flabel span{color:var(--muted);font-size:9.5px}
+.fdoors{display:flex;gap:16px;align-items:center;padding:12px 16px;flex-wrap:wrap}
+.door{display:flex;align-items:center;gap:7px;font-size:11px;color:var(--muted);position:relative}
+.door .d{width:9px;height:9px;border-radius:50%;background:var(--teal);flex:0 0 auto}
+.door .d.warn{background:var(--amber)}
+.door .d.bad{background:var(--red)}
+.door .d::after{content:"";position:absolute;inset:-4px;border-radius:50%;border:1px solid currentColor;opacity:0;
+  animation:ring 2.6s infinite}
+.door:nth-child(odd) .d::after{animation-delay:.6s}
+@keyframes ring{0%{opacity:.5;transform:scale(.4)}100%{opacity:0;transform:scale(1.8)}}
+.door b{color:var(--ink);font-weight:600}
+
+/* scanline over header of mappanel */
+.scanhead{position:relative;overflow:hidden;border-radius:10px;border:1px solid var(--line);
+  background:linear-gradient(120deg,#0f1720,#0c1015);padding:16px 18px;margin-bottom:20px;
+  display:flex;align-items:center;gap:14px}
+.scanhead::after{content:"";position:absolute;top:0;bottom:0;width:120px;
+  background:linear-gradient(90deg,transparent,rgba(49,213,200,.08),transparent);
+  animation:sweep 3.5s linear infinite}
+@keyframes sweep{0%{left:-120px}100%{left:110%}}
+.scanhead i{font-size:22px;color:var(--teal)}
+.scanhead b{font-size:13px;display:block}
+.scanhead small{color:var(--muted);font-size:10.5px}
+
+/* event terminal */
+.termpanel{background:#070a0e;padding:0;display:flex;flex-direction:column}
+.term-head{padding:16px 20px;border-bottom:1px solid var(--line);display:flex;align-items:center;justify-content:space-between}
+.term-head b{font-size:12.5px;font-weight:700}
+.term-head span{color:var(--muted);font-size:10px}
+.term-head .live{display:flex;align-items:center;gap:6px;color:var(--red);font-size:9.5px;text-transform:uppercase;letter-spacing:.08em;font-weight:700}
+.term-head .live i{width:6px;height:6px;border-radius:50%;background:var(--red);animation:blink 1.2s infinite}
+@keyframes blink{50%{opacity:.25}}
+.termbody{flex:1;padding:14px 20px;font-family:"IBM Plex Mono",monospace;font-size:11.5px;overflow:auto}
+.tline{display:flex;gap:10px;padding:7px 0;border-bottom:1px solid #10161f}
+.tline .ts{color:var(--dim);flex:0 0 68px}
+.tline .tag{flex:0 0 82px;font-weight:700;text-transform:uppercase;font-size:9.5px;letter-spacing:.04em}
+.tline .tag.ok{color:var(--teal)}
+.tline .tag.bad{color:var(--red)}
+.tline .tag.warn{color:var(--amber)}
+.tline .msg{color:var(--ink);flex:1}
+.tline .msg span{color:var(--muted)}
+.cursor{display:inline-block;width:6px;height:12px;background:var(--teal);vertical-align:middle;animation:blink 1s infinite}
+
+.devgrid{border-top:1px solid var(--line);padding:16px 20px}
+.devgrid b{font-size:11.5px;display:block;margin-bottom:10px}
+.dgrow{display:flex;align-items:center;gap:10px;padding:7px 0;font-size:11px;border-bottom:1px solid #10161f}
+.dgrow:last-child{border:0}
+.dgrow .d{width:7px;height:7px;border-radius:50%;background:var(--teal)}
+.dgrow .d.warn{background:var(--amber)}
+.dgrow .d.bad{background:var(--red)}
+.dgrow .name{flex:1;color:var(--ink)}
+.dgrow .ip{color:var(--dim);font-family:"IBM Plex Mono",monospace;font-size:10px}
+
+@media(max-width:980px){.wrap{grid-template-columns:1fr}.rail{display:none}}
+</style>
+</head>
+<body>
+<div class="shell">
+  <div class="rail">
+    <div class="mark">VX</div>
+    <a class="active" title="Дашборд"><i class="ti ti-layout-dashboard"></i></a>
+    <a title="Карта объекта"><i class="ti ti-map-2"></i></a>
+    <a title="Люди"><i class="ti ti-users"></i></a>
+    <a title="Камеры"><i class="ti ti-camera"></i></a>
+    <a title="Устройства"><i class="ti ti-cpu"></i></a>
+    <a title="Отчёты"><i class="ti ti-report"></i></a>
+    <div class="spacer"></div>
+    <div class="pulse"></div>
+  </div>
+  <main>
+    <div class="topstrip">
+      <div class="site">Vadalex Tower<small>Пост охраны · Смена 2</small></div>
+      <div class="chips">
+        <div class="chip ok"><i class="ti ti-shield-check"></i> <b>48/50</b> устройств</div>
+        <div class="chip"><i class="ti ti-door"></i> <b>2</b> требуют внимания</div>
+      </div>
+      <div class="clock">
+        <div class="time" id="clk">09:42:57</div>
+        <div class="date">Чт, 20 августа 2026</div>
+      </div>
+      <div class="avatar">ВР</div>
+    </div>
+
+    <div class="wrap">
+      <div class="mappanel">
+        <div class="scanhead">
+          <i class="ti ti-radar-2"></i>
+          <div>
+            <b>Мониторинг в реальном времени</b>
+            <small>Последний опрос устройств — 4 секунды назад · автообновление каждые 5с</small>
+          </div>
+        </div>
+
+        <div class="kpis">
+          <div class="kpi up"><div class="n">1 248</div><div class="l">событий сегодня</div></div>
+          <div class="kpi up"><div class="n">932</div><div class="l">лиц распознано</div></div>
+          <div class="kpi down"><div class="n">23</div><div class="l">доступ запрещён</div></div>
+          <div class="kpi"><div class="n">48</div><div class="l">гостей на объекте</div></div>
+        </div>
+
+        <h1>Карта этажей</h1>
+        <div class="sub">Статус дверей и считывателей по уровням здания</div>
+        <div class="floors">
+          <div class="floor"><div class="flabel"><b>Этаж 12</b><span>Жилой</span></div>
+            <div class="fdoors">
+              <div class="door"><i class="d"></i><b>1204</b> Вход</div>
+              <div class="door"><i class="d warn"></i><b>1204</b> Служебный вход</div>
+              <div class="door"><i class="d"></i><b>Лестница C</b></div>
+            </div></div>
+          <div class="floor"><div class="flabel"><b>Этаж 10</b><span>Жилой</span></div>
+            <div class="fdoors">
+              <div class="door"><i class="d"></i><b>1007</b> Вход</div>
+              <div class="door"><i class="d bad"></i><b>Северный лифт</b></div>
+              <div class="door"><i class="d"></i><b>Лестница A</b></div>
+            </div></div>
+          <div class="floor"><div class="flabel"><b>Этаж 2</b><span>Общие зоны</span></div>
+            <div class="fdoors">
+              <div class="door"><i class="d"></i><b>Спортзал</b></div>
+              <div class="door"><i class="d"></i><b>Бассейн</b></div>
+              <div class="door"><i class="d"></i><b>Коворкинг</b></div>
+            </div></div>
+          <div class="floor"><div class="flabel"><b>Этаж 0</b><span>Вестибюль</span></div>
+            <div class="fdoors">
+              <div class="door"><i class="d"></i><b>Главный холл</b></div>
+              <div class="door"><i class="d"></i><b>Ресепшн</b></div>
+              <div class="door"><i class="d"></i><b>Гараж</b></div>
+              <div class="door"><i class="d"></i><b>Почтовая</b></div>
+            </div></div>
+        </div>
+      </div>
+
+      <div class="termpanel">
+        <div class="term-head">
+          <div>
+            <b>Журнал событий</b><br><span>vadalex://events/stream</span>
+          </div>
+          <div class="live"><i></i> LIVE</div>
+        </div>
+        <div class="termbody">
+          <div class="tline"><span class="ts">09:42:00</span><span class="tag ok">GRANTED</span><span class="msg">Вадим Рыжкин <span>· Главный холл · карта</span></span></div>
+          <div class="tline"><span class="ts">09:41:22</span><span class="tag ok">GRANTED</span><span class="msg">Омар Петров <span>· Бассейн · лицо 94.6%</span></span></div>
+          <div class="tline"><span class="ts">09:40:44</span><span class="tag bad">DENIED</span><span class="msg">Эмма Браун <span>· Служебный вход · лицо 97.2%</span></span></div>
+          <div class="tline"><span class="ts">09:40:03</span><span class="tag ok">GRANTED</span><span class="msg">Джон Смит <span>· Спортзал · лицо 95.9%</span></span></div>
+          <div class="tline"><span class="ts">09:39:25</span><span class="tag warn">UNKNOWN</span><span class="msg">Неизвестный человек <span>· Северный лифт</span></span></div>
+          <div class="tline"><span class="ts">09:38:11</span><span class="tag ok">GRANTED</span><span class="msg">Мария Гомес <span>· Гараж · лицо 93.3%</span></span></div>
+          <div class="tline"><span class="ts">09:37:40</span><span class="tag ok">GRANTED</span><span class="msg">Ким Юна <span>· Ресепшн · карта</span></span></div>
+          <div class="tline"><span class="ts">09:36:58</span><span class="tag warn">RETRY</span><span class="msg">Алекс Ким <span>· Коворкинг · лицо 61.2% — низкая уверенность</span></span></div>
+          <div class="tline"><span class="ts">09:36:02</span><span class="tag ok">GRANTED</span><span class="msg">Сара Ли <span>· Лестница A · карта</span></span></div>
+          <div class="tline"><span class="ts">09:35:19</span><span class="tag ok">GRANTED</span><span class="msg">Игорь Валеев <span>· Главный холл · лицо 98.1%</span> <span class="cursor"></span></span></div>
+        </div>
+        <div class="devgrid">
+          <b>Устройства, требующие внимания</b>
+          <div class="dgrow"><i class="d warn"></i><div class="name">Считыватель · Служебный вход</div><div class="ip">нужна синхр.</div></div>
+          <div class="dgrow"><i class="d bad"></i><div class="name">Считыватель · Северный лифт</div><div class="ip">офлайн 6 мин</div></div>
+        </div>
+      </div>
+    </div>
+  </main>
+</div>
+<script>
+function tick(){
+  const el=document.getElementById('clk');
+  const d=new Date();
+  el.textContent=d.toLocaleTimeString('ru-RU',{hour12:false});
+}
+tick();setInterval(tick,1000);
+</script>
+</body>
+</html>
