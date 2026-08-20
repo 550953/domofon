@@ -1,0 +1,159 @@
+<!doctype html><html lang="en"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1">
+<title>Dashboard — Vadalex Access</title>
+<style>
+*{box-sizing:border-box;margin:0}
+:root{--bg:#0f1621;--side:#0c1119;--card:#fff;--ink:#0f1b2d;--mut:#64748b;--line:#e8edf3;--soft:#f3f6fa;
+  --brand:#1f74d1;--brand2:#125aa8;--ok:#16a34a;--okbg:#e7f6ec;--warn:#e0902a;--warnbg:#fbf1de;--err:#e0483f;--errbg:#fbe9e8;}
+body{font-family:-apple-system,'Segoe UI',Inter,Roboto,sans-serif;color:var(--ink);background:var(--soft)}
+.app{display:grid;grid-template-columns:250px 1fr;min-height:100vh}
+/* sidebar (premium dark) */
+.side{background:linear-gradient(180deg,#101826,#0b1017);color:#aeb9c8;padding:18px 14px;display:flex;flex-direction:column;gap:3px}
+.logo{display:flex;align-items:center;gap:11px;padding:6px 8px 16px}
+.logo .m{width:40px;height:40px;border-radius:11px;background:#fff;display:flex;align-items:center;justify-content:center;position:relative}
+.logo .m b{color:var(--brand);font-weight:800;font-size:13px}.logo .m i{position:absolute;right:6px;bottom:6px;width:9px;height:9px;border-radius:2px;background:#f2662d}
+.logo .t{font-weight:800;font-size:15px;color:#fff;letter-spacing:.5px}.logo .t span{display:block;font-size:8.5px;letter-spacing:2.5px;color:#6f8098;font-weight:600;margin-top:1px}
+.nav{display:flex;flex-direction:column;gap:2px;margin-top:4px}
+.ni{display:flex;align-items:center;gap:12px;padding:10px 12px;border-radius:9px;font-size:13.5px;font-weight:500;color:#9fabbd;cursor:pointer}
+.ni .d{width:16px;height:16px;border-radius:4px;border:1.6px solid currentColor;opacity:.7}
+.ni:hover{background:rgba(255,255,255,.05);color:#dbe3ee}
+.ni.on{background:linear-gradient(90deg,rgba(31,116,209,.22),rgba(31,116,209,.05));color:#fff;box-shadow:inset 2px 0 0 var(--brand)}
+.ni.on .d{opacity:1;border-color:#4f9be8;background:rgba(79,155,232,.25)}
+.sgap{margin-top:auto}
+.acct{display:flex;align-items:center;gap:10px;padding:10px;border-radius:10px;background:rgba(255,255,255,.05);margin-top:8px}
+.acct .av{width:32px;height:32px;border-radius:8px;background:#1f74d1;color:#fff;display:flex;align-items:center;justify-content:center;font-weight:700;font-size:12px}
+.acct .n{font-size:12.5px;color:#dbe3ee;font-weight:600;line-height:1.1}.acct .n span{display:block;font-size:10px;color:#7c8ba1;font-weight:500}
+/* main */
+.main{display:flex;flex-direction:column;min-width:0}
+.top{display:flex;align-items:center;gap:14px;padding:14px 26px;background:#fff;border-bottom:1px solid var(--line)}
+.search{flex:1;max-width:440px;display:flex;align-items:center;gap:9px;background:var(--soft);border:1px solid var(--line);border-radius:10px;padding:9px 13px;color:var(--mut);font-size:13px}
+.chip{display:flex;align-items:center;gap:7px;font-size:12px;font-weight:600;padding:7px 12px;border-radius:8px;border:1px solid var(--line)}
+.chip .dot{width:8px;height:8px;border-radius:50%;background:var(--ok);box-shadow:0 0 0 3px var(--okbg)}
+.chip.local{color:var(--mut)}
+.tools{margin-left:auto;display:flex;align-items:center;gap:14px;color:var(--mut)}
+.tools .av{width:34px;height:34px;border-radius:9px;background:#1f74d1;color:#fff;display:flex;align-items:center;justify-content:center;font-weight:700;font-size:12px}
+.body{padding:24px 26px;display:flex;flex-direction:column;gap:18px}
+.h1{font-size:24px;font-weight:800}.hsub{color:var(--mut);font-size:14px;margin-top:3px}
+/* status ribbon */
+.ribbon{display:flex;align-items:center;gap:26px;background:#fff;border:1px solid var(--line);border-radius:14px;padding:18px 22px;box-shadow:0 1px 2px rgba(16,27,45,.04)}
+.ribbon .ic{width:46px;height:46px;border-radius:12px;background:var(--okbg);color:var(--ok);display:flex;align-items:center;justify-content:center;font-size:22px}
+.ribbon .st{font-size:11px;letter-spacing:1px;color:var(--mut);text-transform:uppercase;font-weight:700}
+.ribbon .big{font-size:19px;font-weight:800;margin-top:1px}
+.ribbon .tiny{font-size:12px;color:var(--mut);margin-top:2px}
+.rmetric{display:flex;align-items:center;gap:9px;font-size:13px;font-weight:600}
+.rmetric .b{width:9px;height:9px;border-radius:50%}
+.rmetric small{display:block;color:var(--mut);font-weight:500;font-size:11.5px}
+.rbtn{margin-left:auto;background:var(--ink);color:#fff;border:0;border-radius:10px;padding:11px 16px;font-size:13px;font-weight:600;cursor:pointer}
+/* KPI */
+.kpis{display:grid;grid-template-columns:repeat(5,1fr);gap:14px}
+.kpi{background:#fff;border:1px solid var(--line);border-radius:14px;padding:16px;box-shadow:0 1px 2px rgba(16,27,45,.04)}
+.kpi .ic{width:36px;height:36px;border-radius:10px;display:flex;align-items:center;justify-content:center;font-size:17px;margin-bottom:12px}
+.kpi .lab{font-size:11px;letter-spacing:.6px;color:var(--mut);text-transform:uppercase;font-weight:700}
+.kpi .val{font-size:26px;font-weight:800;margin-top:4px}
+.kpi .delta{font-size:12px;font-weight:600;margin-top:3px}
+.i-blue{background:#e8f1fd;color:var(--brand)}.i-vio{background:#eef0fd;color:#5b60d6}.i-red{background:var(--errbg);color:var(--err)}.i-cy{background:#e6f6f8;color:#0e9aa7}.i-gr{background:var(--okbg);color:var(--ok)}
+.up{color:var(--ok)}.down{color:var(--err)}
+/* grid */
+.grid{display:grid;grid-template-columns:1.55fr 1fr;gap:16px}
+.card{background:#fff;border:1px solid var(--line);border-radius:14px;box-shadow:0 1px 2px rgba(16,27,45,.04)}
+.ch{display:flex;align-items:center;justify-content:space-between;padding:16px 18px;border-bottom:1px solid var(--line)}
+.ch .t{font-weight:700;font-size:15px}.ch .s{font-size:12px;color:var(--mut);margin-top:1px}
+.ch a{color:var(--brand);font-size:12.5px;font-weight:600;text-decoration:none}
+.ev{display:flex;align-items:center;gap:13px;padding:12px 18px;border-bottom:1px solid var(--soft)}
+.ev .av{width:36px;height:36px;border-radius:10px;background:var(--soft);color:var(--mut);display:flex;align-items:center;justify-content:center;font-weight:700;font-size:12px;flex:none}
+.ev .nm{font-weight:600;font-size:13.5px}.ev .meta{font-size:12px;color:var(--mut);margin-top:2px}
+.ev .r{margin-left:auto;text-align:right}
+.pill{display:inline-block;font-size:11px;font-weight:700;padding:4px 10px;border-radius:20px}
+.p-ok{background:var(--okbg);color:var(--ok)}.p-no{background:var(--errbg);color:var(--err)}.p-unk{background:var(--warnbg);color:var(--warn)}
+.ev .tm{font-size:11.5px;color:var(--mut);margin-top:4px;font-variant-numeric:tabular-nums}
+.dev{display:flex;align-items:center;gap:11px;padding:12px 18px;border-bottom:1px solid var(--soft)}
+.dev .b{width:9px;height:9px;border-radius:50%;flex:none}
+.dev .nm{font-weight:600;font-size:13px}.dev .ip{font-size:11.5px;color:var(--mut);font-variant-numeric:tabular-nums}
+.dev .st{margin-left:auto;font-size:11px;font-weight:700;padding:4px 10px;border-radius:20px}
+/* quick */
+.quick{display:grid;grid-template-columns:repeat(3,1fr);gap:14px}
+.qa{display:flex;align-items:center;gap:13px;background:#fff;border:1px solid var(--line);border-radius:14px;padding:16px 18px;box-shadow:0 1px 2px rgba(16,27,45,.04)}
+.qa .ic{width:40px;height:40px;border-radius:11px;background:#e8f1fd;color:var(--brand);display:flex;align-items:center;justify-content:center;font-size:18px}
+.qa .t{font-weight:700;font-size:14px}.qa .s{font-size:12px;color:var(--mut);margin-top:1px}
+</style></head><body>
+<div class="app">
+  <aside class="side">
+    <div class="logo"><div class="m"><b>VA</b><i></i></div><div class="t">VADALEX<span>ACCESS CONTROL</span></div></div>
+    <div class="nav">
+      <div class="ni on"><span class="d"></span>Dashboard</div>
+      <div class="ni"><span class="d"></span>People</div>
+      <div class="ni"><span class="d"></span>Access</div>
+      <div class="ni"><span class="d"></span>Doors</div>
+      <div class="ni"><span class="d"></span>Elevator</div>
+      <div class="ni"><span class="d"></span>Intercom</div>
+      <div class="ni"><span class="d"></span>Visitors</div>
+      <div class="ni"><span class="d"></span>Delivery</div>
+      <div class="ni"><span class="d"></span>Cameras</div>
+      <div class="ni"><span class="d"></span>Devices</div>
+      <div class="ni"><span class="d"></span>Live Events</div>
+      <div class="ni"><span class="d"></span>Reports</div>
+      <div class="ni"><span class="d"></span>System</div>
+    </div>
+    <div class="sgap"></div>
+    <div class="nav">
+      <div class="ni"><span class="d"></span>Settings</div>
+      <div class="ni"><span class="d"></span>Help</div>
+    </div>
+    <div class="acct"><div class="av">DA</div><div class="n">Demo Account<span>Demo</span></div></div>
+  </aside>
+  <div class="main">
+    <div class="top">
+      <div class="search">⌕ &nbsp;Search people, doors, devices…</div>
+      <div class="chip"><span class="dot"></span> All Systems Operational</div>
+      <div class="chip local">⌂ Local mode</div>
+      <div class="tools"><span>🔔</span><span>?</span><div class="av">VR</div></div>
+    </div>
+    <div class="body">
+      <div>
+        <div class="h1">Good morning</div>
+        <div class="hsub">Here's what's happening with your access control system.</div>
+      </div>
+      <div class="ribbon">
+        <div class="ic">✓</div>
+        <div><div class="st">System Status</div><div class="big">All Systems Operational</div><div class="tiny">Last system check: 20 seconds ago</div></div>
+        <div class="rmetric"><span class="b" style="background:var(--ok)"></span><div>48 Devices<small>Online</small></div></div>
+        <div class="rmetric"><span class="b" style="background:var(--err)"></span><div>2 Devices<small>Offline</small></div></div>
+        <div class="rmetric"><span class="b" style="background:var(--ok)"></span><div>46 Doors<small>Online</small></div></div>
+        <div class="rmetric"><span class="b" style="background:var(--warn)"></span><div>2 Doors<small>Need Attention</small></div></div>
+        <button class="rbtn">View System Health →</button>
+      </div>
+      <div class="kpis">
+        <div class="kpi"><div class="ic i-blue">◷</div><div class="lab">Access Events Today</div><div class="val">1,248</div><div class="delta up">▲ 12% vs yesterday</div></div>
+        <div class="kpi"><div class="ic i-vio">☺</div><div class="lab">Face Recognitions</div><div class="val">932</div><div class="delta up">▲ 8% vs yesterday</div></div>
+        <div class="kpi"><div class="ic i-red">⛌</div><div class="lab">Access Denied</div><div class="val">23</div><div class="delta down">▼ 3% vs yesterday</div></div>
+        <div class="kpi"><div class="ic i-cy">☻</div><div class="lab">Visitors</div><div class="val">48</div><div class="delta up">▲ 5 active now</div></div>
+        <div class="kpi"><div class="ic i-gr">▤</div><div class="lab">Devices Online</div><div class="val">48 / 50</div><div class="delta down">2 offline</div></div>
+      </div>
+      <div class="grid">
+        <div class="card">
+          <div class="ch"><div><div class="t">Recent Access Events</div><div class="s">Latest activity across all doors</div></div><a href="#">View all events</a></div>
+          <div class="ev"><div class="av">VR</div><div><div class="nm">Vadim Ryzhkin</div><div class="meta">Security · Main Lobby · Card</div></div><div class="r"><span class="pill p-ok">Access Granted</span><div class="tm">9:42:00 AM</div></div></div>
+          <div class="ev"><div class="av">MG</div><div><div class="nm">Maria Gomez</div><div class="meta">Front Desk · Garage · Face · 93.3%</div></div><div class="r"><span class="pill p-ok">Access Granted</span><div class="tm">9:42:41 AM</div></div></div>
+          <div class="ev"><div class="av">OP</div><div><div class="nm">Omar Petrov</div><div class="meta">Security · Pool · Face · 94.6%</div></div><div class="r"><span class="pill p-ok">Access Granted</span><div class="tm">9:41:22 AM</div></div></div>
+          <div class="ev"><div class="av">JS</div><div><div class="nm">John Smith</div><div class="meta">Unit 1204 · Gym · Face · 95.9%</div></div><div class="r"><span class="pill p-ok">Access Granted</span><div class="tm">9:40:03 AM</div></div></div>
+          <div class="ev"><div class="av">EB</div><div><div class="nm">Emma Brown</div><div class="meta">Unit 1007 · Service Entrance · Face · 97.2%</div></div><div class="r"><span class="pill p-no">Access Denied</span><div class="tm">9:40:44 AM</div></div></div>
+          <div class="ev"><div class="av" style="color:var(--err)">?</div><div><div class="nm">Unknown Person</div><div class="meta">North Elevator · Face</div></div><div class="r"><span class="pill p-unk">Unknown Face</span><div class="tm">9:39:25 AM</div></div></div>
+        </div>
+        <div class="card">
+          <div class="ch"><div><div class="t">Devices</div><div class="s">Face readers and controllers</div></div><a href="#">View all</a></div>
+          <div class="dev"><span class="b" style="background:var(--ok)"></span><div><div class="nm">Main Lobby Face Reader</div><div class="ip">192.168.10.21</div></div><span class="st p-ok">Online</span></div>
+          <div class="dev"><span class="b" style="background:var(--ok)"></span><div><div class="nm">Garage Face Reader</div><div class="ip">192.168.10.22</div></div><span class="st p-ok">Online</span></div>
+          <div class="dev"><span class="b" style="background:var(--ok)"></span><div><div class="nm">Pool Face Reader</div><div class="ip">192.168.10.23</div></div><span class="st p-ok">Online</span></div>
+          <div class="dev"><span class="b" style="background:var(--ok)"></span><div><div class="nm">Gym Controller</div><div class="ip">192.168.10.24</div></div><span class="st p-ok">Online</span></div>
+          <div class="dev"><span class="b" style="background:var(--warn)"></span><div><div class="nm">Service Entrance Reader</div><div class="ip">192.168.10.25</div></div><span class="st p-unk">Needs Sync</span></div>
+          <div class="dev"><span class="b" style="background:var(--err)"></span><div><div class="nm">North Elevator Reader</div><div class="ip">192.168.10.26</div></div><span class="st p-no">Offline</span></div>
+        </div>
+      </div>
+      <div class="quick">
+        <div class="qa"><div class="ic">＋</div><div><div class="t">Add a person</div><div class="s">Enroll a face and assign access</div></div></div>
+        <div class="qa"><div class="ic">⚿</div><div><div class="t">Open a door</div><div class="s">Remotely release any door</div></div></div>
+        <div class="qa"><div class="ic">◉</div><div><div class="t">Watch live events</div><div class="s">Realtime access monitoring</div></div></div>
+      </div>
+    </div>
+  </div>
+</div>
+</body></html>
