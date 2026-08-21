@@ -52,6 +52,7 @@ const ICON = {
   key:'<path d="m15.5 7.5 2.3 2.3a1 1 0 0 0 1.4 0l1.3-1.3a1 1 0 0 0 0-1.4L18.2 5"/><path d="m21.9 6.1-9.4 9.4"/><circle cx="6" cy="18" r="4"/>',
   logoMark:'<path d="M4 3v18"/><path d="M4 3 15.5 6.2v11.6L4 21"/><path d="M9.5 12h7"/><path d="M19 9l3 3-3 3"/>',
   printer:'<path d="M6 18H4a2 2 0 0 1-2-2v-5a2 2 0 0 1 2-2h16a2 2 0 0 1 2 2v5a2 2 0 0 1-2 2h-2"/><path d="M6 9V4a1 1 0 0 1 1-1h10a1 1 0 0 1 1 1v5"/><rect x="6" y="14" width="12" height="8"/>',
+  chevronDown:'<path d="m6 9 6 6 6-6"/>',
 };
 
 function svg(name, cls) {
@@ -272,6 +273,63 @@ function fSelect(id, options, selected) {
 }
 function fSelectOnChange(id, options, selected, fnName) {
   return `<select id="${id}" onchange="${fnName}(this.value)">${options.map(o => `<option ${o === selected ? 'selected' : ''}>${o}</option>`).join('')}</select>`;
+}
+
+/* ---------- searchable combo select (dropdown with type-to-filter, for long option lists) ---------- */
+function fCombo(id, options, selected) {
+  const val = selected || '';
+  return `<div class="combo">
+    <input id="${id}" class="combo-input" value="${val}" data-value="${val}" data-options='${JSON.stringify(options)}'
+      autocomplete="off" onfocus="comboOpen('${id}')" oninput="comboFilter('${id}')" onblur="comboBlur('${id}')">
+    ${svg('chevronDown', 'combo-chev')}
+    <div class="combo-list" id="${id}-list"></div>
+  </div>`;
+}
+function comboOptions(id) {
+  const input = document.getElementById(id);
+  if (!input) return [];
+  try { return JSON.parse(input.getAttribute('data-options')); } catch (e) { return []; }
+}
+function comboRenderList(id, query) {
+  const input = document.getElementById(id);
+  if (!input) return;
+  const wrap = input.closest('.combo');
+  const list = document.getElementById(id + '-list');
+  const all = comboOptions(id);
+  const q = (query || '').trim().toLowerCase();
+  const filtered = q ? all.filter(o => o.toLowerCase().includes(q)) : all;
+  const current = input.dataset.value || '';
+  list.innerHTML = filtered.length
+    ? filtered.map(o => `<div class="combo-opt ${o === current ? 'sel' : ''}" onmousedown="event.preventDefault();comboSelect('${id}', ${JSON.stringify(o).replace(/"/g, '&quot;')})">
+        <span>${o}</span>${o === current ? svg('circleCheck') : ''}
+      </div>`).join('')
+    : `<div class="combo-empty">Ничего не найдено</div>`;
+  wrap.classList.add('open');
+}
+function comboOpen(id) {
+  const input = document.getElementById(id);
+  if (!input) return;
+  input.select();
+  comboRenderList(id, '');
+}
+function comboFilter(id) {
+  comboRenderList(id, document.getElementById(id).value);
+}
+function comboSelect(id, value) {
+  const input = document.getElementById(id);
+  if (!input) return;
+  input.value = value;
+  input.dataset.value = value;
+  input.closest('.combo').classList.remove('open');
+  if (input.dataset.onchange) window[input.dataset.onchange](value);
+}
+function comboBlur(id) {
+  setTimeout(() => {
+    const input = document.getElementById(id);
+    if (!input) return;
+    input.value = input.dataset.value || '';
+    input.closest('.combo').classList.remove('open');
+  }, 120);
 }
 function fTextarea(id, value, placeholder) {
   return `<textarea id="${id}" placeholder="${placeholder || ''}">${value || ''}</textarea>`;

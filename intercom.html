@@ -158,7 +158,7 @@ function openAddStation() {
       ${fField('Расположение', fInput('ns-location','','Северный холл'))}
       ${fField('SIP ID', fInput('ns-sip','','2007'))}
       ${fField('IP-адрес', fInput('ns-ip','','10.20.40.67'))}
-      ${fField('Привязанная дверь', fSelect('ns-door', ['Не привязано'].concat(DOOR_NAMES), 'Не привязано'))}
+      ${fField('Привязанная дверь', fCombo('ns-door', ['Не привязано'].concat(DOOR_NAMES), 'Не привязано'))}
     </div>
     <div class="formgrid" style="margin-top:6px">
       ${fField('Видеокамера', `<label class="switch"><input type="checkbox" id="ns-video" checked><span class="slider"></span></label>`)}
@@ -199,7 +199,7 @@ function openStationEdit(name) {
       ${fField('Название', fInput('es-name', s.name))}
       ${fField('Статус', fSelect('es-status', ['Онлайн','Офлайн'], s.status))}
       ${fField('Группа звонка', fSelect('es-ring', RING_GROUPS, s.ringGroup))}
-      ${fField('Привязанная дверь', fSelect('es-door', DOOR_NAMES, s.linkedDoor))}
+      ${fField('Привязанная дверь', fCombo('es-door', DOOR_NAMES, s.linkedDoor))}
     </div>
   `);
   document.getElementById('modal-root').querySelector('.modal').insertAdjacentHTML('beforeend', modalFooter(`

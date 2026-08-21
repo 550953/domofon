@@ -541,6 +541,22 @@ table.dt tr:hover td{background:var(--panel-2)}
 .weekrow span{color:var(--muted);font:600 12px var(--font-mono)}
 .weekrow.off span{color:#b9b3a0}
 
+/* ---------- searchable combo select (type-to-filter dropdown) ---------- */
+.combo{position:relative}
+.combo input{padding-right:32px;cursor:pointer}
+.combo-chev{position:absolute;right:11px;top:50%;transform:translateY(-50%);width:14px;height:14px;color:var(--muted);
+  pointer-events:none;transition:transform .15s}
+.combo.open .combo-chev{transform:translateY(-50%) rotate(180deg)}
+.combo-list{position:absolute;top:calc(100% + 4px);left:0;right:0;background:var(--panel);border:1px solid var(--line);
+  border-radius:10px;box-shadow:0 16px 40px rgba(0,0,0,.18);z-index:120;max-height:230px;overflow:auto;
+  display:none;padding:4px}
+.combo.open .combo-list{display:block}
+.combo-opt{padding:8px 10px;border-radius:7px;font-size:12.5px;cursor:pointer;display:flex;align-items:center;justify-content:space-between;gap:8px}
+.combo-opt:hover{background:var(--panel-2)}
+.combo-opt.sel{background:var(--brand-soft);color:var(--brand);font-weight:700}
+.combo-opt svg{width:13px;height:13px;flex:none}
+.combo-empty{padding:10px 8px;color:var(--muted);font-size:12px;text-align:center}
+
 /* ---------- multi-select checklist boxes (elevators, doors) ---------- */
 .checklist{border:1px solid var(--line);border-radius:8px;padding:10px;max-height:150px;overflow:auto;
   display:grid;grid-template-columns:1fr 1fr;gap:8px 14px;font-size:12.5px}
