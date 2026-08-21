@@ -1,0 +1,10 @@
+<svg viewBox="0 0 220 48" xmlns="http://www.w3.org/2000/svg">
+  <rect width="40" height="40" y="4" rx="10" fill="#2e6d42"/>
+  <g fill="none" stroke="#ffffff" stroke-width="2.3" stroke-linecap="round" stroke-linejoin="round">
+    <path d="M12 13v22"/>
+    <path d="M12 13 25 16.4v15.2L12 35"/>
+    <path d="M18.5 24h9"/>
+    <path d="M30.5 20.5 34 24l-3.5 3.5"/>
+  </g>
+  <text x="54" y="30" font-family="'Sora','Plus Jakarta Sans',ui-sans-serif,system-ui,sans-serif" font-size="24" font-weight="700" letter-spacing="-0.01em" fill="#1c1c1a">DoorFlow</text>
+</svg>

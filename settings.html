@@ -3,7 +3,7 @@
 <head>
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width, initial-scale=1">
-<title>Настройки — Vadalex Access</title>
+<title>Настройки — DoorFlow</title>
 <link rel="stylesheet" href="assets/fonts.css">
 <link rel="stylesheet" href="assets/styles.css">
 <style>
@@ -13,6 +13,55 @@
 .settingsnav a:hover:not(.active){background:var(--panel-2);color:var(--ink)}
 .settingslayout{display:grid;grid-template-columns:200px 1fr;gap:20px}
 @media(max-width:900px){.settingslayout{grid-template-columns:1fr}}
+
+.permrow{display:flex;justify-content:space-between;align-items:flex-start;gap:14px;padding:12px 18px;border-bottom:1px solid var(--line)}
+.permrow:last-child{border-bottom:0}
+.permrow .ptx b{display:block;font-size:12.5px;font-weight:700}
+.permrow .ptx span{color:var(--muted);font-size:11px}
+.permrow .switch{margin-top:2px}
+.permgroup-label{padding:14px 18px 4px;font:600 10px var(--font-mono);text-transform:uppercase;letter-spacing:.07em;color:var(--muted)}
+
+.rolebox{margin:14px 18px 4px;padding:14px 16px;background:var(--panel-2);border:1px solid var(--line);border-radius:10px}
+.rolebox b{display:block;font-size:13px;margin-bottom:3px}
+.rolebox p{margin:0;color:var(--muted);font-size:11.5px}
+.rolebox .rmeta{margin-top:7px;color:var(--muted);font-size:10.5px;font-weight:600}
+
+.userrow{display:flex;align-items:center;gap:12px;padding:14px 18px;border-bottom:1px solid var(--line);flex-wrap:wrap}
+.userrow:last-child{border-bottom:0}
+.userrow .av{width:34px;height:34px;border-radius:50%;background:var(--brand-soft);color:var(--brand);display:grid;place-items:center;font:700 11px var(--font-mono);flex:none}
+.userrow .utx{flex:1;min-width:180px}
+.userrow .utx .uname{display:flex;align-items:center;gap:7px;font-weight:700;font-size:12.5px}
+.userrow .utx .umeta{color:var(--muted);font-size:11px;margin-top:2px}
+.userrow .uactions{display:flex;gap:8px;align-items:center;flex-wrap:wrap}
+.btn-xs{padding:7px 11px;font-size:11px;border-radius:7px}
+
+.periph-card{display:flex;align-items:flex-start;gap:14px;padding:16px 18px;border-bottom:1px solid var(--line);flex-wrap:wrap}
+.periph-card:last-child{border-bottom:0}
+.periph-ic{width:36px;height:36px;border-radius:9px;background:var(--panel-2);color:var(--ink);display:grid;place-items:center;flex:none}
+.periph-ic svg{width:18px;height:18px}
+.periph-tx{flex:1;min-width:220px}
+.periph-tx .ptitle{display:flex;align-items:center;gap:8px;font-weight:700;font-size:13px;flex-wrap:wrap}
+.periph-tx .pmeta{color:var(--muted);font-size:11.5px;margin-top:3px}
+.periph-tx .pextra{display:flex;gap:16px;flex-wrap:wrap;color:var(--muted);font-size:11px;margin-top:6px}
+.periph-tx .pextra b{color:var(--ink)}
+.periph-actions{display:flex;align-items:center;gap:8px;flex:none;margin-left:auto}
+
+.auditrow{display:flex;gap:12px;align-items:flex-start;padding:13px 18px;border-bottom:1px solid var(--line)}
+.auditrow:last-child{border-bottom:0}
+.auditrow .aic{width:30px;height:30px;border-radius:8px;background:var(--brand-soft);color:var(--brand);display:grid;place-items:center;flex:none;margin-top:1px}
+.auditrow .aic svg{width:15px;height:15px}
+.auditrow .atx{flex:1;font-size:12.5px}
+.auditrow .atx .arole{color:var(--muted);font-size:11px;margin-top:2px}
+.auditrow .atime{color:var(--muted);font-size:11px;white-space:nowrap}
+
+.barwrap{margin:0 18px 18px;height:8px;border-radius:20px;background:var(--panel-2);overflow:hidden}
+.barwrap i{display:block;height:100%;background:var(--brand)}
+
+.btn.plain{background:transparent;color:var(--ink);padding:11px 6px}
+.btn.plain:hover{text-decoration:underline}
+
+.uploadbar{display:flex;align-items:center;justify-content:center;height:38px;border:1px dashed var(--line);border-radius:8px;color:var(--muted);font:600 12px var(--font-body);cursor:pointer;background:var(--panel)}
+.uploadbar:hover{background:var(--panel-2)}
 </style>
 </head>
 <body>
@@ -21,94 +70,456 @@
 <script>
 const DB = window.VDX_DB;
 let setTab = 'Общие';
+let selectedRole = 'Manager';
 
-function operatorRow(o) {
-  return `<tr>
-    <td>${o.name}</td><td>${o.email}</td><td>${o.role}</td><td><span class="tag ${tagClass(o.status)}">${o.status}</span></td>
-    <td><div class="rowactions"><button onclick="toast('Открыть профиль оператора')">${svg('penLine')}</button><button class="danger" onclick="removeOperator('${o.name}')">${svg('trash')}</button></div></td>
-  </tr>`;
-}
-function removeOperator(name) { const i = DB.operators.findIndex(x=>x.name===name); if(i>-1) DB.operators.splice(i,1); renderSettings(); toast('Оператор удалён'); }
+/* ---------- shared data ---------- */
+const TIMEZONES = ['Europe/Amsterdam','Europe/Moscow','America/New_York','America/Chicago','America/Los_Angeles','UTC'];
+const DATE_FORMATS = ['DD.MM.YYYY','MMM D, YYYY','YYYY-MM-DD','MM/DD/YYYY'];
+const LANGUAGES = ['Русский','English','Español','Français'];
+const ROLE_ORDER = DB.rolesConfig.order;
+const ROLE_LABELS = DB.rolesConfig.labels;
+const PERM_TOTAL = DB.permGroups.reduce((a,g)=>a+g.items.length,0);
+const HW_TYPES = ['Сканер штрихкодов','ID / паспорт-сканер','Термопринтер этикеток'];
+const HW_MODELS = {
+  'Сканер штрихкодов': ['Zebra DS2208','Honeywell Voyager 1470g','Datalogic QuickScan QD2430','Generic HID'],
+  'ID / паспорт-сканер': ['Regula 7310','Regula 70x4M','Generic MRZ Reader'],
+  'Термопринтер этикеток': ['Zebra ZD421','Zebra GK420t','Generic ZPL-принтер']
+};
+const HW_ICON = { 'Сканер штрихкодов':'scanBarcode', 'ID / паспорт-сканер':'scanFace', 'Термопринтер этикеток':'printer' };
+const CONN_TYPES = ['USB HID','Serial (COM)','Network (TCP)','Bluetooth'];
+const CONN_PLACEHOLDER = { 'USB HID':'HID:/dev/input/eventX', 'Serial (COM)':'COM3', 'Network (TCP)':'192.168.10.64:9100', 'Bluetooth':'AA:BB:CC:DD:EE:FF' };
 
-function openAddOperator() {
-  openModal('Добавить оператора', `
-    <div class="formgrid">
-      ${fField('Имя', fInput('op-name','',''))}
-      ${fField('Email', fInput('op-email','',''))}
-      ${fField('Роль', fSelect('op-role', ['Администратор','Менеджер','Оператор'], 'Оператор'), {full:true})}
+function clone(o) { return JSON.parse(JSON.stringify(o)); }
+function countPerms(role) { const o = DB.rolesConfig.current[role] || {}; return Object.values(o).filter(Boolean).length; }
+function rerenderKeepScroll(fn) { const y = window.scrollY; fn(); requestAnimationFrame(() => window.scrollTo(0, y)); }
+
+/* ==================== ОБЩИЕ ==================== */
+function renderGeneral() {
+  const s = DB.settingsData;
+  document.getElementById('settings-body').innerHTML = `<section class="panel">
+    <div class="panel-head"><div><h2>Общие</h2><p>Как система себя идентифицирует</p></div></div>
+    <div style="padding:18px" class="formgrid">
+      ${fField('Название системы', fInput('gs-system', s.systemName))}
+      ${fField('Название объекта', fInput('gs-property', s.propertyName))}
+      ${fField('Часовой пояс', fSelect('gs-tz', TIMEZONES, s.timezone))}
+      ${fField('Формат даты', fSelect('gs-date', DATE_FORMATS, s.dateFormat))}
+      ${fField('Язык', fSelect('gs-lang', LANGUAGES, s.language))}
+      ${fField('Логотип', `<div class="uploadbar" onclick="document.getElementById('gs-logo-file').click()">${s.logoName || 'Загрузить логотип'}</div><input type="file" id="gs-logo-file" accept="image/*" style="display:none" onchange="onLogoChosen(this)">`)}
     </div>
-  `);
-  document.getElementById('modal-root').querySelector('.modal').insertAdjacentHTML('beforeend', modalFooter(`
-    <button class="btn outline" onclick="closeModal()">Отмена</button>
-    <button class="btn" onclick="saveOperator()">Добавить</button>
-  `));
+    <div style="padding:0 18px 18px"><button class="btn" onclick="saveGeneral()">Сохранить изменения</button></div>
+  </section>`;
 }
-function saveOperator() {
-  const name = document.getElementById('op-name').value.trim() || 'Новый оператор';
-  DB.operators.unshift({ name, email: document.getElementById('op-email').value || '—', role: document.getElementById('op-role').value, status: 'Активен' });
-  closeModal(); renderSettings(); toast(`«${name}» добавлен`);
+function onLogoChosen(input) {
+  const f = input.files[0];
+  if (!f) return;
+  DB.settingsData.logoName = f.name;
+  renderGeneral();
+  toast('Логотип обновлён');
 }
-
 function saveGeneral() {
   const s = DB.settingsData;
   s.systemName = document.getElementById('gs-system').value;
   s.propertyName = document.getElementById('gs-property').value;
   s.timezone = document.getElementById('gs-tz').value;
+  s.dateFormat = document.getElementById('gs-date').value;
   s.language = document.getElementById('gs-lang').value;
   toast('Изменения сохранены');
 }
 
-function renderSettings() {
-  const body = document.getElementById('settings-body');
-  const s = DB.settingsData;
-  if (setTab === 'Общие') {
-    body.innerHTML = `<section class="panel">
-      <div class="panel-head"><div><h2>Общие</h2><p>Как система себя идентифицирует</p></div></div>
-      <div style="padding:18px" class="formgrid">
-        ${fField('Название системы', fInput('gs-system', s.systemName))}
-        ${fField('Название объекта', fInput('gs-property', s.propertyName))}
-        ${fField('Часовой пояс', fInput('gs-tz', s.timezone))}
-        ${fField('Формат даты', fInput('gs-date', s.dateFormat))}
-        ${fField('Язык', fSelect('gs-lang', ['Русский','English'], s.language))}
-      </div>
-      <div style="padding:0 18px 18px"><button class="btn" onclick="saveGeneral()">Сохранить изменения</button></div>
-    </section>`;
-  } else if (setTab === 'Пользователи и роли') {
-    body.innerHTML = `<section class="panel">
-      <div class="panel-head"><div><h2>Пользователи и роли</h2><p>Кто может управлять этой системой</p></div><button class="btn outline" onclick="openAddOperator()">${svg('plus')}Добавить</button></div>
-      <div class="tblwrap" style="border:0;border-radius:0"><table class="dt"><thead><tr><th>Имя</th><th>Email</th><th>Роль</th><th>Статус</th><th></th></tr></thead>
-      <tbody>${DB.operators.map(operatorRow).join('')}</tbody></table></div>
-    </section>`;
-  } else if (setTab === 'Безопасность') {
-    body.innerHTML = `<section class="panel"><div class="panel-head"><div><h2>Безопасность</h2><p>Политики входа и доступа операторов</p></div></div>
-      <div style="padding:18px" class="formgrid">
-        ${fField('Двухфакторная аутентификация', fSelect('sec-2fa', ['Включена','Отключена'], 'Включена'))}
-        ${fField('Тайм-аут сессии', fSelect('sec-timeout', ['15 минут','30 минут','1 час'], '30 минут'))}
-      </div>
-      <div style="padding:0 18px 18px"><button class="btn" onclick="toast('Изменения сохранены')">Сохранить изменения</button></div>
-    </section>`;
-  } else if (setTab === 'Хранилище и копии') {
-    body.innerHTML = `<section class="panel"><div class="panel-head"><div><h2>Хранилище и резервное копирование</h2><p>Локальные файлы и расписание копий</p></div></div>
-      <div class="detail-list" style="padding:18px">
-        <div class="detail-row"><span>Расположение копий</span><span class="mono">/var/vadalex/backups</span></div>
-        <div class="detail-row"><span>Расписание</span><span>Ежедневно в 2:00</span></div>
-      </div>
-    </section>`;
-  } else {
-    body.innerHTML = `<section class="panel"><div class="panel-head"><div><h2>Сеть</h2><p>Локальная сеть и подключённые сегменты</p></div></div>
-      <div class="detail-list" style="padding:18px">
-        <div class="detail-row"><span>Режим</span><span>Локальный, без выхода в интернет</span></div>
-        <div class="detail-row"><span>Подсеть устройств</span><span class="mono">192.168.10.0/24</span></div>
-      </div>
-    </section>`;
-  }
+/* ==================== ПОЛЬЗОВАТЕЛИ И РОЛИ ==================== */
+function userRow(o) {
+  const tags = [];
+  if (o.you) tags.push('<span class="tag info">Вы</span>');
+  if (o.readOnly) tags.push('<span class="tag warn">Только чтение</span>');
+  const count = countPerms(o.role);
+  return `<div class="userrow">
+    <span class="av">${initialsOf(o.name)}</span>
+    <div class="utx">
+      <div class="uname">${o.name} ${tags.join('')}</div>
+      <div class="umeta">Логин ${o.login} · ${count} из ${PERM_TOTAL} прав</div>
+    </div>
+    <div class="uactions">
+      <select class="select-sm" onchange="changeOperatorRole('${o.login}', this.value)">
+        ${ROLE_ORDER.map(r => `<option value="${r}" ${r === o.role ? 'selected' : ''}>${ROLE_LABELS[r]}</option>`).join('')}
+      </select>
+      <button class="btn outline btn-xs" onclick="openResetPassword('${o.login}')">${svg('key')}Пароль</button>
+      <button class="btn outline btn-xs" onclick="selectRole('${o.role}')">${svg('shield')}Права</button>
+    </div>
+  </div>`;
+}
+function changeOperatorRole(login, role) {
+  const o = DB.operators.find(x => x.login === login);
+  if (o) o.role = role;
+  rerenderKeepScroll(renderUsersRoles);
+  toast(o ? `Роль «${o.name}» изменена на «${ROLE_LABELS[role]}»` : 'Роль изменена');
+}
+function openResetPassword(login) {
+  const o = DB.operators.find(x => x.login === login);
+  openModal('Сброс пароля консоли', `
+    <p class="hint" style="margin-bottom:14px">Новый пароль для ${o.name} (логин ${o.login}).</p>
+    <div class="formgrid">
+      ${fField('Новый пароль', `<input type="password" id="pw-new" placeholder="Минимум 12 символов">`, {full:true})}
+      ${fField('Подтвердите пароль', `<input type="password" id="pw-confirm">`, {full:true})}
+    </div>
+  `);
+  document.getElementById('modal-root').querySelector('.modal').insertAdjacentHTML('beforeend', modalFooter(`
+    <button class="btn outline" onclick="closeModal()">Отмена</button>
+    <button class="btn" onclick="savePassword('${login}')">Сохранить пароль</button>
+  `));
+}
+function savePassword(login) {
+  const a = document.getElementById('pw-new').value;
+  const b = document.getElementById('pw-confirm').value;
+  if (!a || a.length < 12) { toast('Пароль должен быть не короче 12 символов'); return; }
+  if (a !== b) { toast('Пароли не совпадают'); return; }
+  closeModal();
+  toast('Пароль обновлён');
+}
+function roleBoxHTML(role) {
+  const count = countPerms(role);
+  const accounts = DB.operators.filter(o => o.role === role).length;
+  const isDefault = JSON.stringify(DB.rolesConfig.current[role]) === JSON.stringify(DB.rolesConfig.defaults[role]);
+  return `<div class="rolebox">
+    <b>${ROLE_LABELS[role]}</b>
+    <p>${DB.rolesConfig.descriptions[role]}</p>
+    <div class="rmeta">${accounts} аккаунт(ов) · ${count} из ${PERM_TOTAL} прав включено · ${isDefault ? 'конфигурация по умолчанию' : 'изменено'}</div>
+  </div>`;
+}
+function permRow(role, item) {
+  const checked = !!DB.rolesConfig.current[role][item.key];
+  return `<div class="permrow">
+    <div class="ptx"><b>${item.name}</b><span>${item.desc}</span></div>
+    <label class="switch"><input type="checkbox" ${checked ? 'checked' : ''} onchange="togglePerm('${role}','${item.key}', this.checked)"><span class="slider"></span></label>
+  </div>`;
+}
+function togglePerm(role, key, checked) {
+  DB.rolesConfig.current[role][key] = checked;
+  rerenderKeepScroll(renderUsersRoles);
+}
+function selectRole(role) {
+  selectedRole = role;
+  renderUsersRoles();
+  const panel = document.getElementById('roles-panel');
+  if (panel) panel.scrollIntoView({ behavior: 'smooth', block: 'start' });
+}
+function resetRolePerms(role) {
+  DB.rolesConfig.current[role] = clone(DB.rolesConfig.defaults[role]);
+  rerenderKeepScroll(renderUsersRoles);
+  toast(`Права роли «${ROLE_LABELS[role]}» сброшены`);
+}
+function renderUsersRoles() {
+  document.getElementById('settings-body').innerHTML = `
+  <section class="panel">
+    <div class="panel-head"><div><h2>Пользователи приложения</h2><p>Аккаунты для входа в эту консоль. Создаются из профиля человека через «Доступ в приложение».</p></div></div>
+    <div>${DB.operators.map(userRow).join('')}</div>
+  </section>
+  <section class="panel" style="margin-top:16px" id="roles-panel">
+    <div class="panel-head">
+      <div><h2>Роли, права и видимость</h2><p>Право определяет и видимость пункта меню, и действия внутри раздела.</p></div>
+      <button class="btn outline btn-xs" onclick="resetRolePerms('${selectedRole}')">${svg('refresh')}Сбросить «${ROLE_LABELS[selectedRole]}»</button>
+    </div>
+    <div style="padding:14px 18px 0" class="filtertabs">${ROLE_ORDER.map(r => `<button class="ftab ${r === selectedRole ? 'active' : ''}" onclick="selectRole('${r}')">${ROLE_LABELS[r]}</button>`).join('')}</div>
+    ${roleBoxHTML(selectedRole)}
+    ${DB.permGroups.map(g => `
+      <div class="permgroup-label">${g.label}</div>
+      ${g.items.map(it => permRow(selectedRole, it)).join('')}
+    `).join('')}
+    <div style="padding:16px 18px"><button class="btn" onclick="toast('Права сохранены')">Сохранить права</button></div>
+  </section>`;
 }
 
-function setSettingsTab(v, el) { setTab = v; document.querySelectorAll('.settingsnav a').forEach(a => a.classList.toggle('active', a === el)); renderSettings(); }
+/* ==================== ЖУРНАЛ АУДИТА ==================== */
+function auditRow(a) {
+  return `<div class="auditrow">
+    <span class="aic">${svg('shield')}</span>
+    <div class="atx"><b>${a.actor}</b> ${a.action} ${a.target ? `<b>${a.target}</b>` : ''}<div class="arole">${a.role}</div></div>
+    <span class="atime">${a.time}</span>
+  </div>`;
+}
+function renderAuditLog() {
+  document.getElementById('settings-body').innerHTML = `<section class="panel">
+    <div class="panel-head"><div><h2>Журнал аудита</h2><p>Каждое действие оператора фиксируется локально.</p></div></div>
+    <div>${DB.auditLog.map(auditRow).join('')}</div>
+  </section>`;
+}
 
-const navItems = ['Общие','Пользователи и роли','Безопасность','Хранилище и копии','Сеть'];
+/* ==================== БЕЗОПАСНОСТЬ ==================== */
+function secRow(key, name, desc, val) {
+  return `<div class="permrow"><div class="ptx"><b>${name}</b><span>${desc}</span></div>
+    <label class="switch"><input type="checkbox" ${val ? 'checked' : ''} onchange="toggleSecurity('${key}', this.checked)"><span class="slider"></span></label></div>`;
+}
+function toggleSecurity(key, checked) {
+  const map = { strong: 'strongPasswords', twofa: 'twoFA', timeout: 'autoSignout', lock: 'lockAfterFailed' };
+  DB.security[map[key]] = checked;
+  toast(checked ? 'Настройка включена' : 'Настройка отключена');
+}
+function renderSecurity() {
+  const sec = DB.security;
+  document.getElementById('settings-body').innerHTML = `<section class="panel">
+    <div class="panel-head"><div><h2>Безопасность</h2><p>Защита консоли оператора.</p></div></div>
+    ${secRow('strong', 'Требовать надёжные пароли', 'Минимум 12 символов.', sec.strongPasswords)}
+    ${secRow('twofa', 'Двухфакторная аутентификация', 'Локальные TOTP-приложения.', sec.twoFA)}
+    ${secRow('timeout', 'Автовыход через 15 минут', 'Защищает неохраняемые стойки.', sec.autoSignout)}
+    ${secRow('lock', 'Блокировка после 5 неудачных попыток', 'Предотвращает подбор пароля.', sec.lockAfterFailed)}
+  </section>`;
+}
+
+/* ==================== УСТРОЙСТВА (ПО УМОЛЧАНИЮ) ==================== */
+function renderDevicesDefaults() {
+  const d = DB.deviceDefaults;
+  document.getElementById('settings-body').innerHTML = `<section class="panel">
+    <div class="panel-head"><div><h2>Устройства по умолчанию</h2><p>Применяется к новым устройствам.</p></div></div>
+    <div class="detail-list" style="padding:18px">
+      <div class="detail-row"><span>Порт по умолчанию</span><span class="mono">${d.port}</span></div>
+      <div class="detail-row"><span>Интервал синхронизации</span><span>${d.syncInterval}</span></div>
+      <div class="detail-row"><span>Порог распознавания</span><span class="mono">${d.threshold}</span></div>
+      <div class="detail-row"><span>Защита от подделки</span><span>${d.antiSpoofing}</span></div>
+    </div>
+  </section>`;
+}
+
+/* ==================== ПЕРИФЕРИЯ ==================== */
+function periphCard(p) {
+  const icon = HW_ICON[p.type] || 'devices';
+  const tag = p.connected ? `<span class="tag ok">${svg('circleCheck')}Подключено</span>` : `<span class="tag warn">Отключено</span>`;
+  return `<div class="periph-card">
+    <span class="periph-ic">${svg(icon)}</span>
+    <div class="periph-tx">
+      <div class="ptitle">${p.name} ${tag}</div>
+      <div class="pmeta">${p.type} · ${p.model} · ${p.connection} · <span class="mono">${p.path}</span></div>
+      <div class="pmeta">Последний раз на связи: ${p.lastSeen}</div>
+      ${p.extra && p.extra.length ? `<div class="pextra">${p.extra.map(e => `<span><b>${e[0]}:</b> ${e[1]}</span>`).join('')}</div>` : ''}
+    </div>
+    <div class="periph-actions">
+      <label class="switch"><input type="checkbox" ${p.enabled ? 'checked' : ''} onchange="togglePeripheral('${p.id}', this.checked)"><span class="slider"></span></label>
+      <button class="btn outline btn-xs" onclick="testPeripheral('${p.id}')">Тест</button>
+      <button class="btn outline btn-xs" onclick="openEditPeripheral('${p.id}')">Изменить</button>
+      <button class="btn outline btn-xs" style="color:var(--red);border-color:var(--red-soft)" onclick="deletePeripheralConfirm('${p.id}')">${svg('trash')}Удалить</button>
+    </div>
+  </div>`;
+}
+function renderPeripherals() {
+  document.getElementById('settings-body').innerHTML = `<section class="panel">
+    <div class="panel-head">
+      <div><h2>Периферия</h2><p>Оборудование ресепшн для регистрации посетителей, сканирования ID, печати пропусков и приёма посылок.</p></div>
+      <button class="btn" onclick="openAddPeripheral()">${svg('plus')}Добавить оборудование</button>
+    </div>
+    <div>${DB.peripherals.map(periphCard).join('')}</div>
+  </section>`;
+}
+function togglePeripheral(id, checked) {
+  const p = DB.peripherals.find(x => x.id === id);
+  if (p) { p.enabled = checked; p.connected = checked; }
+  renderPeripherals();
+  toast(p ? (checked ? `«${p.name}» подключено` : `«${p.name}» отключено`) : 'Обновлено');
+}
+function testPeripheral(id) {
+  const p = DB.peripherals.find(x => x.id === id);
+  toast(p ? `«${p.name}»: тест пройден, устройство отвечает` : 'Тест пройден');
+}
+function peripheralFormFields(p) {
+  const type = (p && p.type) || HW_TYPES[0];
+  return `<div class="formgrid">
+    ${fField('Тип оборудования', fSelectOnChange('ph-type', HW_TYPES, type, 'onHwTypeChange'), {full:true})}
+    ${fField('Отображаемое имя', fInput('ph-name', p ? p.name : '', 'Например, «Сканер на ресепшн»'))}
+    ${fField('Модель', fSelect('ph-model', HW_MODELS[type], p ? p.model : HW_MODELS[type][0]))}
+    ${fField('Подключение', fSelectOnChange('ph-conn', CONN_TYPES, p ? p.connection : CONN_TYPES[0], 'onHwConnChange'))}
+    ${fField('Порт / путь устройства', fInput('ph-path', p ? p.path : '', CONN_PLACEHOLDER[p ? p.connection : CONN_TYPES[0]]))}
+  </div>`;
+}
+function onHwTypeChange(type) {
+  const sel = document.getElementById('ph-model');
+  if (sel) sel.innerHTML = HW_MODELS[type].map(m => `<option>${m}</option>`).join('');
+}
+function onHwConnChange(conn) {
+  const path = document.getElementById('ph-path');
+  if (path) path.placeholder = CONN_PLACEHOLDER[conn];
+}
+function openAddPeripheral() {
+  openModal('Добавить периферийное устройство', `
+    <p class="hint" style="margin-bottom:14px">Подключите сканер или принтер этикеток, чтобы ресепшн мог сканировать ID, читать штрихкоды и печатать пропуска.</p>
+    ${peripheralFormFields(null)}
+  `);
+  document.getElementById('modal-root').querySelector('.modal').insertAdjacentHTML('beforeend', modalFooter(`
+    <button class="btn outline" onclick="closeModal()">Отмена</button>
+    <button class="btn" onclick="savePeripheral()">Добавить оборудование</button>
+  `));
+}
+function savePeripheral() {
+  const name = document.getElementById('ph-name').value.trim() || 'Новое устройство';
+  const type = document.getElementById('ph-type').value;
+  const p = {
+    id: 'p' + Date.now(),
+    name, type,
+    model: document.getElementById('ph-model').value,
+    connection: document.getElementById('ph-conn').value,
+    path: document.getElementById('ph-path').value || '—',
+    enabled: true, connected: true, lastSeen: 'только что', extra: []
+  };
+  DB.peripherals.unshift(p);
+  closeModal();
+  renderPeripherals();
+  toast(`«${name}» подключено`);
+}
+function openEditPeripheral(id) {
+  const p = DB.peripherals.find(x => x.id === id);
+  if (!p) return;
+  openModal('Изменить периферийное устройство', peripheralFormFields(p));
+  document.getElementById('modal-root').querySelector('.modal').insertAdjacentHTML('beforeend', modalFooter(`
+    <button class="btn outline" onclick="closeModal()">Отмена</button>
+    <button class="btn" onclick="savePeripheralEdit('${id}')">Сохранить изменения</button>
+  `));
+}
+function savePeripheralEdit(id) {
+  const p = DB.peripherals.find(x => x.id === id);
+  if (!p) return;
+  p.name = document.getElementById('ph-name').value.trim() || p.name;
+  p.type = document.getElementById('ph-type').value;
+  p.model = document.getElementById('ph-model').value;
+  p.connection = document.getElementById('ph-conn').value;
+  p.path = document.getElementById('ph-path').value || p.path;
+  closeModal();
+  renderPeripherals();
+  toast('Изменения сохранены');
+}
+function deletePeripheralConfirm(id) {
+  const p = DB.peripherals.find(x => x.id === id);
+  if (!p) return;
+  openModal('Удалить периферийное устройство?', `<p>«${p.name}» (${p.type}) будет отключено.</p>`);
+  document.getElementById('modal-root').querySelector('.modal').insertAdjacentHTML('beforeend', modalFooter(`
+    <button class="btn outline" onclick="closeModal()">Отмена</button>
+    <button class="btn danger" onclick="confirmDeletePeripheral('${id}')">Удалить</button>
+  `));
+}
+function confirmDeletePeripheral(id) {
+  const i = DB.peripherals.findIndex(x => x.id === id);
+  if (i > -1) DB.peripherals.splice(i, 1);
+  closeModal();
+  renderPeripherals();
+  toast('Периферийное устройство удалено');
+}
+
+/* ==================== ХРАНИЛИЩЕ ==================== */
+function renderStorage() {
+  const s = DB.storage;
+  const totalGB = s.usedGB + s.freeGB;
+  const pct = Math.round((s.usedGB / totalGB) * 100);
+  document.getElementById('settings-body').innerHTML = `<section class="panel">
+    <div class="panel-head"><div><h2>Хранилище</h2><p>Где хранятся события и снимки.</p></div></div>
+    <div class="detail-list" style="padding:18px">
+      <div class="detail-row"><span>Хранение событий</span><span>${s.eventRetentionDays} дней</span></div>
+      <div class="detail-row"><span>Хранение снимков</span><span>${s.snapshotRetentionDays} дней</span></div>
+      <div class="detail-row"><span>Использовано</span><span>${s.usedGB} ГБ</span></div>
+      <div class="detail-row"><span>Свободно</span><span>${s.freeGB} ГБ</span></div>
+    </div>
+    <div class="barwrap"><i style="width:${pct}%"></i></div>
+  </section>`;
+}
+
+/* ==================== РЕЗЕРВНОЕ КОПИРОВАНИЕ ==================== */
+function renderBackup() {
+  const b = DB.backup;
+  document.getElementById('settings-body').innerHTML = `<section class="panel">
+    <div class="panel-head"><div><h2>Резервное копирование</h2><p>Расписание локальных резервных копий.</p></div></div>
+    <div class="detail-list" style="padding:18px">
+      <div class="detail-row"><span>Расписание</span><span>${b.schedule}</span></div>
+      <div class="detail-row"><span>Хранение копий</span><span>${b.retentionCount} копий</span></div>
+      <div class="detail-row"><span>Последняя копия</span><span>${b.lastBackup}</span></div>
+      <div class="detail-row"><span>Статус</span><span class="tag ${tagClass(b.status)}">${b.status}</span></div>
+    </div>
+    <div style="padding:0 18px 18px;display:flex;gap:8px;flex-wrap:wrap;align-items:center">
+      <button class="btn" onclick="backupNow()">Создать копию</button>
+      <button class="btn outline" onclick="restoreBackup()">Восстановить из копии</button>
+      <button class="btn plain" onclick="downloadBackup()">Скачать копию</button>
+    </div>
+  </section>`;
+}
+function backupNow() {
+  DB.backup.lastBackup = 'Сегодня, только что';
+  DB.backup.status = 'Успешно';
+  renderBackup();
+  toast('Резервная копия создана успешно');
+}
+function restoreBackup() {
+  toast('Мастер восстановления открыт');
+}
+function downloadBackup() {
+  const s = DB.settingsData, b = DB.backup;
+  const data = JSON.stringify({ system: s.systemName, property: s.propertyName, created: new Date().toISOString(), retentionCount: b.retentionCount }, null, 2);
+  const blob = new Blob([data], { type: 'application/json' });
+  const a = document.createElement('a');
+  a.href = URL.createObjectURL(blob);
+  a.download = 'doorflow-backup.json';
+  document.body.appendChild(a); a.click(); a.remove();
+  toast('Резервная копия скачана');
+}
+
+/* ==================== СЕТЬ ==================== */
+function renderNetwork() {
+  const n = DB.network;
+  document.getElementById('settings-body').innerHTML = `<section class="panel">
+    <div class="panel-head"><div><h2>Сеть</h2><p>Этот сервер работает внутри здания.</p></div></div>
+    <div class="detail-list" style="padding:18px">
+      <div class="detail-row"><span>Адрес сервера</span><span class="mono">${n.serverAddress}</span></div>
+      <div class="detail-row"><span>Имя хоста</span><span class="mono">${n.hostname}</span></div>
+      <div class="detail-row"><span>Подсеть устройств</span><span class="mono">${n.subnet}</span></div>
+      <div class="detail-row"><span>Доступ в интернет</span><span>${n.internetAccess}</span></div>
+    </div>
+  </section>`;
+}
+
+/* ==================== СИСТЕМА ==================== */
+function renderSystemInfo() {
+  const s = DB.systemInfo;
+  document.getElementById('settings-body').innerHTML = `<section class="panel">
+    <div class="panel-head"><div><h2>Система</h2><p>Версия и информация о локальных сервисах.</p></div></div>
+    <div class="detail-list" style="padding:18px">
+      <div class="detail-row"><span>Версия</span><span class="mono">${s.version}</span></div>
+      <div class="detail-row"><span>Аптайм</span><span>${s.uptime}</span></div>
+      <div class="detail-row"><span>База данных</span><span>${s.database}</span></div>
+      <div class="detail-row"><span>Шлюз</span><span>${s.gateway}</span></div>
+    </div>
+  </section>`;
+}
+
+/* ==================== ДОПОЛНИТЕЛЬНО ==================== */
+function renderAdvanced() {
+  const a = DB.advanced;
+  document.getElementById('settings-body').innerHTML = `<section class="panel">
+    <div class="panel-head"><div><h2>Дополнительно</h2><p>Нужно только техническим специалистам.</p></div></div>
+    <div class="detail-list" style="padding:18px">
+      <div class="detail-row"><span>API base URL</span><span class="mono">${a.apiBaseUrl}</span></div>
+      <div class="detail-row"><span>Event socket</span><span class="mono">${a.eventSocket}</span></div>
+      <div class="detail-row"><span>Уровень логирования</span><span>${a.logLevel}</span></div>
+      <div class="detail-row"><span>Протокол шлюза</span><span>${a.gatewayProtocol}</span></div>
+    </div>
+  </section>`;
+}
+
+/* ==================== РОУТИНГ ВКЛАДОК ==================== */
+const TAB_RENDER = {
+  'Общие': renderGeneral,
+  'Пользователи и роли': renderUsersRoles,
+  'Журнал аудита': renderAuditLog,
+  'Безопасность': renderSecurity,
+  'Устройства': renderDevicesDefaults,
+  'Периферия': renderPeripherals,
+  'Хранилище': renderStorage,
+  'Резервное копирование': renderBackup,
+  'Сеть': renderNetwork,
+  'Система': renderSystemInfo,
+  'Дополнительно': renderAdvanced
+};
+function renderSettings() { (TAB_RENDER[setTab] || renderGeneral)(); }
+function setSettingsTab(v, el) {
+  setTab = v;
+  document.querySelectorAll('.settingsnav a').forEach(a => a.classList.toggle('active', a === el));
+  renderSettings();
+}
+
+const navItems = ['Общие','Пользователи и роли','Журнал аудита','Безопасность','Устройства','Периферия','Хранилище','Резервное копирование','Сеть','Система','Дополнительно'];
 const content = `
-${pageHead('Vadalex Tower · демо-аккаунт', 'Настройки', 'Настройте систему, операторов и локальное окружение.', '')}
+${pageHead('DoorFlow Tower · демо-аккаунт', 'Настройки', 'Настройте систему, операторов и локальное окружение.', '')}
 <div class="settingslayout">
   <nav class="settingsnav">${navItems.map((n,i) => `<a href="#" class="${i===0?'active':''}" onclick="event.preventDefault(); setSettingsTab('${n}', this)">${n}</a>`).join('')}</nav>
   <div id="settings-body"></div>

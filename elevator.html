@@ -3,7 +3,7 @@
 <head>
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width, initial-scale=1">
-<title>Лифты — Vadalex Access</title>
+<title>Лифты — DoorFlow</title>
 <link rel="stylesheet" href="assets/fonts.css">
 <link rel="stylesheet" href="assets/styles.css">
 </head>
@@ -13,22 +13,82 @@
 <script>
 const DB = window.VDX_DB;
 let elFilter = 'Все';
+let selectedElevatorName = DB.elevators[0].name;
+const MODES = ['Требуется карта', 'Свободный доступ', 'Заблокирован', 'Пожарный режим'];
+const BANKS = ['Нижняя зона', 'Средняя зона', 'Верхняя зона', 'Служебная зона'];
 
+/* ---------- helpers: stops / floor permissions ---------- */
+function generateStops(basementLevels, floorsAboveGround) {
+  const arr = [];
+  for (let i = basementLevels; i >= 1; i--) arr.push('B' + i);
+  arr.push('Г');
+  for (let i = 1; i <= floorsAboveGround; i++) arr.push(String(i));
+  return arr;
+}
+function stopsSummary(basementLevels, floorsAboveGround) {
+  const labels = generateStops(basementLevels, floorsAboveGround);
+  return `${labels.length} ост.: ${labels.join(', ')}`;
+}
+function getFloorPermissions(e) {
+  if (!e.floorPermissions) {
+    const labels = generateStops(e.basementLevels, e.floorsAboveGround);
+    e.floorPermissions = labels.map(id => ({
+      id,
+      label: id === 'Г' ? 'Главный холл' : (id.startsWith('B') ? 'Паркинг ' + id : 'Этаж ' + id),
+      group: 'Все сотрудники',
+      restricted: (e.restrictedFloors || []).includes(id),
+    }));
+  }
+  return e.floorPermissions;
+}
+
+/* ---------- computed stats (always derived from live data — no stale totals) ---------- */
+function computeSummary() {
+  const total = DB.elevators.length;
+  const online = DB.elevators.filter(e => e.status === 'Онлайн').length;
+  const lockedDown = DB.elevators.filter(e => e.mode === 'Заблокирован').length;
+  const restrictedFloors = DB.elevators.reduce((sum, e) => sum + getFloorPermissions(e).filter(f => f.restricted).length, 0);
+  return { total, online, lockedDown, restrictedFloors };
+}
+function updateStats() {
+  const s = computeSummary();
+  document.getElementById('stat-total').textContent = s.total;
+  document.getElementById('stat-online').textContent = s.online;
+  document.getElementById('stat-restricted').textContent = s.restrictedFloors;
+  document.getElementById('stat-locked').textContent = s.lockedDown;
+}
+
+/* ---------- card rendering ---------- */
+function modeTagClass(mode) {
+  if (mode === 'Заблокирован') return 'bad';
+  if (mode === 'Свободный доступ') return 'warn';
+  if (mode === 'Пожарный режим') return 'fire';
+  return 'info';
+}
+function cabLine(e) {
+  return `${e.cabState} · этаж ${e.cabFloor}`;
+}
 function elCard(e) {
   const statCls = tagClass(e.status);
-  const modeCls = e.mode === 'Заблокирован' ? 'bad' : (e.mode === 'Свободный доступ' ? 'ok' : 'warn');
-  return `<div class="entity">
+  const active = e.name === selectedElevatorName ? 'active-entity' : '';
+  return `<div class="entity ${active}">
     <div class="entity-head">
-      <div><h3>${e.name}</h3><p>${e.location}</p></div>
-      <div class="entity-badges"><span class="tag ${statCls}">${e.status}</span></div>
+      <div><h3 style="cursor:pointer" onclick="selectElevator('${e.name}')" title="Показать разрешения по этажам">${e.name}</h3><p>${e.building} · ${e.bank}</p></div>
+      <div class="entity-badges">
+        <span class="tag ${statCls}">${e.status}</span>
+        <span class="tag ${modeTagClass(e.mode)}">${e.mode}</span>
+      </div>
     </div>
-    <div class="entity-badges"><span class="tag ${modeCls}">${e.mode}</span></div>
     <div class="entity-facts">
-      <div>Кабина: <b>${e.cab}</b></div>
-      <div>Этажей: <b>${e.floors}</b> · Контроллер: <b>${e.controller}</b></div>
+      <div>Кабина: <b>${cabLine(e)}</b></div>
+      <div>Этажей: <b>${e.floors} ост.</b> · Контроллер: <b class="mono">${e.controller}</b></div>
       <div>Последняя поездка: <b>${e.lastTrip}</b></div>
     </div>
+    <select class="select-sm" style="width:100%" onchange="setElevatorMode('${e.name}', this.value)">
+      ${MODES.map(m => `<option ${m === e.mode ? 'selected' : ''}>${m}</option>`).join('')}
+    </select>
     <div class="entity-actions">
+      <button onclick="callToLobby('${e.name}')">${svg('arrowUpRight')}Лобби</button>
       <button onclick="openElevatorEdit('${e.name}')">${svg('penLine')}Изменить</button>
       <button class="danger" onclick="deleteElevator('${e.name}')">${svg('trash')}</button>
     </div>
@@ -46,13 +106,77 @@ function renderElevators() {
 }
 function setElFilter(v) { elFilter = v; document.querySelectorAll('#el-tabs .ftab').forEach(b => b.classList.toggle('active', b.textContent === v)); renderElevators(); }
 
+/* ---------- floor permissions panel ---------- */
+function floorRow(e, f) {
+  return `<div class="row" style="justify-content:space-between">
+    <div style="display:flex;align-items:center;gap:10px;min-width:0">
+      <span class="person">${f.id}</span>
+      <div class="info"><div class="name">${f.label}</div><div class="meta"><i>${f.group}</i></div></div>
+    </div>
+    <button class="tag ${f.restricted ? 'bad' : 'ok'}" onclick="toggleFloorAccess('${e.name}','${f.id}')">${svg(f.restricted ? 'lock' : 'unlock')}${f.restricted ? 'Ограничен' : 'Свободен'}</button>
+  </div>`;
+}
+function renderFloorPanel() {
+  const e = DB.elevators.find(x => x.name === selectedElevatorName) || DB.elevators[0];
+  const perms = getFloorPermissions(e);
+  const panel = document.getElementById('floor-panel');
+  if (!panel) return;
+  panel.innerHTML = `
+    <div class="panel-head">
+      <div><h2>${e.name} — разрешения по этажам</h2><p>Ограниченные этажи требуют предъявления карты доступа внутри кабины.</p></div>
+    </div>
+    <div style="padding:12px 18px;display:flex;gap:14px;flex-wrap:wrap;font-size:11px;color:var(--muted);border-bottom:1px dashed var(--line)">
+      <span>${e.building}</span><span class="mono">${e.ip}</span><span>FW ${e.firmware}</span>
+    </div>
+    <div class="rows" style="max-height:520px;overflow:auto">${perms.map(f => floorRow(e, f)).join('')}</div>`;
+}
+function selectElevator(name) {
+  selectedElevatorName = name;
+  renderElevators();
+  renderFloorPanel();
+}
+function toggleFloorAccess(elevatorName, floorId) {
+  const e = DB.elevators.find(x => x.name === elevatorName);
+  if (!e) return;
+  const perms = getFloorPermissions(e);
+  const f = perms.find(p => p.id === floorId);
+  if (!f) return;
+  f.restricted = !f.restricted;
+  renderFloorPanel();
+  updateStats();
+  toast(`«${f.label}» (${e.name}) теперь ${f.restricted ? 'требует карту доступа' : 'в свободном доступе'}`);
+}
+
+/* ---------- actions ---------- */
+function callToLobby(name) {
+  const e = DB.elevators.find(x => x.name === name);
+  if (!e) return;
+  e.cabState = 'Ожидание';
+  e.cabFloor = 'Г';
+  renderElevators();
+  toast(`«${e.name}» вызван в лобби`);
+}
+function setElevatorMode(name, value) {
+  const e = DB.elevators.find(x => x.name === name);
+  if (!e) return;
+  e.mode = value;
+  renderElevators();
+  updateStats();
+  toast(`Режим «${e.name}» изменён на «${value}»`);
+}
+
+/* ---------- add elevator ---------- */
 function openAddElevator() {
   openModal('Добавить лифт', `
     <div class="formgrid">
-      ${fField('Название', fInput('ne-name','','Лифт E1'))}
-      ${fField('Расположение', fInput('ne-loc','','Башня C · зона'))}
-      ${fField('Контроллер', fInput('ne-ctrl','','LIFT-CTRL-0X'))}
-      ${fField('Режим доступа', fSelect('ne-mode', ['Требуется карта','Свободный доступ','Заблокирован'], 'Требуется карта'))}
+      ${fField('Название', fInput('ne-name', '', 'Лифт E1'))}
+      ${fField('Здание', fInput('ne-building', '', 'Башня C'))}
+      ${fField('Зона', fSelect('ne-bank', BANKS, BANKS[0]))}
+      ${fField('Контроллер', fInput('ne-ctrl', '', 'LIFT-CTRL-13'))}
+      ${fField('IP-адрес', fInput('ne-ip', '', '10.20.30.52'))}
+      ${fField('Этажей выше земли', fInput('ne-above', '8'))}
+      ${fField('Подземных уровней', fInput('ne-basement', '1'))}
+      ${fField('Режим доступа', fSelect('ne-mode', MODES, MODES[0]), { full: true })}
     </div>
   `);
   document.getElementById('modal-root').querySelector('.modal').insertAdjacentHTML('beforeend', modalFooter(`
@@ -62,59 +186,105 @@ function openAddElevator() {
 }
 function saveNewElevator() {
   const name = document.getElementById('ne-name').value.trim() || 'Новый лифт';
-  DB.elevators.unshift({ name, location: document.getElementById('ne-loc').value || '—', status: 'Онлайн',
-    mode: document.getElementById('ne-mode').value, cab: 'Ожидание · этаж Г', floors: 10,
-    controller: document.getElementById('ne-ctrl').value || '—', lastTrip: '—' });
-  closeModal(); renderElevators(); toast(`«${name}» добавлен`);
+  const above = parseInt(document.getElementById('ne-above').value, 10) || 0;
+  const basement = parseInt(document.getElementById('ne-basement').value, 10) || 0;
+  DB.elevators.unshift({
+    name,
+    building: document.getElementById('ne-building').value || '—',
+    bank: document.getElementById('ne-bank').value,
+    status: 'Онлайн', controllerOnline: true,
+    mode: document.getElementById('ne-mode').value,
+    cabState: 'Ожидание', cabFloor: 'Г',
+    floors: above + basement + 1, floorsAboveGround: above, basementLevels: basement,
+    controller: document.getElementById('ne-ctrl').value || '—',
+    ip: document.getElementById('ne-ip').value || '—',
+    firmware: '2.4.0',
+    lastTrip: '—',
+    restrictedFloors: [],
+  });
+  closeModal(); renderElevators(); updateStats(); toast(`«${name}» добавлен`);
 }
+
+/* ---------- edit elevator ---------- */
 function openElevatorEdit(name) {
   const e = DB.elevators.find(x => x.name === name);
   if (!e) return;
   openModal(`Изменить: ${e.name}`, `
     <div class="formgrid">
       ${fField('Название', fInput('ee-name', e.name))}
-      ${fField('Статус', fSelect('ee-status', ['Онлайн','Офлайн'], e.status))}
-      ${fField('Режим доступа', fSelect('ee-mode', ['Требуется карта','Свободный доступ','Заблокирован'], e.mode), {full:true})}
+      ${fField('Здание', fInput('ee-building', e.building))}
+      ${fField('Зона', fSelect('ee-bank', BANKS, e.bank))}
+      ${fField('Контроллер', fInput('ee-ctrl', e.controller))}
+      ${fField('IP-адрес', fInput('ee-ip', e.ip))}
+      ${fField('Этажей выше земли', `<input id="ee-above" type="number" min="0" value="${e.floorsAboveGround}" oninput="updateStopsPreview()">`)}
+      ${fField('Подземных уровней', `<input id="ee-basement" type="number" min="0" value="${e.basementLevels}" oninput="updateStopsPreview()">`)}
+      ${fField('Режим доступа', fSelect('ee-mode', MODES, e.mode))}
+      ${fField('Контроллер онлайн', `<label class="switch"><input type="checkbox" id="ee-online" ${e.controllerOnline ? 'checked' : ''}><span class="slider"></span></label>`)}
     </div>
+    <p class="desc" id="ee-stops-preview" style="margin-top:12px">${stopsSummary(e.basementLevels, e.floorsAboveGround)}</p>
   `);
   document.getElementById('modal-root').querySelector('.modal').insertAdjacentHTML('beforeend', modalFooter(`
     <button class="btn outline" onclick="closeModal()">Отмена</button>
     <button class="btn" onclick="saveElevatorEdit('${name}')">Сохранить</button>
   `));
 }
+function updateStopsPreview() {
+  const above = parseInt(document.getElementById('ee-above').value, 10) || 0;
+  const basement = parseInt(document.getElementById('ee-basement').value, 10) || 0;
+  document.getElementById('ee-stops-preview').textContent = stopsSummary(basement, above);
+}
 function saveElevatorEdit(oldName) {
   const e = DB.elevators.find(x => x.name === oldName);
   if (!e) return;
+  const newAbove = parseInt(document.getElementById('ee-above').value, 10) || 0;
+  const newBasement = parseInt(document.getElementById('ee-basement').value, 10) || 0;
+  const floorsChanged = newAbove !== e.floorsAboveGround || newBasement !== e.basementLevels;
   e.name = document.getElementById('ee-name').value.trim() || e.name;
-  e.status = document.getElementById('ee-status').value;
+  e.building = document.getElementById('ee-building').value || e.building;
+  e.bank = document.getElementById('ee-bank').value;
+  e.controller = document.getElementById('ee-ctrl').value || e.controller;
+  e.ip = document.getElementById('ee-ip').value || e.ip;
+  e.floorsAboveGround = newAbove;
+  e.basementLevels = newBasement;
+  e.floors = newAbove + newBasement + 1;
   e.mode = document.getElementById('ee-mode').value;
-  closeModal(); renderElevators(); toast('Изменения сохранены');
+  e.controllerOnline = document.getElementById('ee-online').checked;
+  e.status = e.controllerOnline ? 'Онлайн' : 'Офлайн';
+  if (floorsChanged) { delete e.floorPermissions; } // floor list regenerates from the new stop count
+  if (selectedElevatorName === oldName) selectedElevatorName = e.name;
+  closeModal(); renderElevators(); renderFloorPanel(); updateStats(); toast('Изменения сохранены');
 }
 function deleteElevator(name) {
   const idx = DB.elevators.findIndex(x => x.name === name);
   if (idx > -1) DB.elevators.splice(idx, 1);
-  renderElevators(); toast(`«${name}» удалён`);
+  if (selectedElevatorName === name) selectedElevatorName = (DB.elevators[0] || {}).name;
+  renderElevators(); renderFloorPanel(); updateStats(); toast(`«${name}» удалён`);
 }
 
-const s = DB.elevatorSummary;
-const tabs = ['Все','Онлайн','Офлайн','Требуется карта','Свободный доступ','Заблокирован'];
+const s = computeSummary();
+const tabs = ['Все', 'Онлайн', 'Офлайн', 'Требуется карта', 'Свободный доступ', 'Заблокирован'];
 const content = `
-${pageHead('Vadalex Tower · демо-аккаунт', 'Управление лифтами', 'Считыватели в кабинах, разрешения по этажам и назначение рейсов для каждого лифтового банка.',
+${pageHead('DoorFlow Tower · демо-аккаунт', 'Управление лифтами', 'Считыватели в кабинах, разрешения по этажам и назначение рейсов для каждого лифтового банка.',
   `<button class="btn" onclick="openAddElevator()">${svg('plus')}Добавить лифт</button>`)}
 
-${statRow([
-  { icon:'elevator', label:'Лифты', value: s.total },
-  { icon:'circleCheck', label:'Онлайн', value: s.online },
-  { icon:'access', label:'Ограниченные этажи', value: s.restrictedFloors },
-  { icon:'shieldAlert', label:'В блокировке', value: s.lockedDown, bad: true },
-])}
+<div class="stats stats-4">
+  <div class="stat"><span class="ic">${svg('elevator')}</span><div class="eyebrow">Лифты</div><strong id="stat-total">${s.total}</strong></div>
+  <div class="stat"><span class="ic">${svg('circleCheck')}</span><div class="eyebrow">Онлайн</div><strong id="stat-online">${s.online}</strong></div>
+  <div class="stat"><span class="ic">${svg('access')}</span><div class="eyebrow">Ограниченные этажи</div><strong id="stat-restricted">${s.restrictedFloors}</strong></div>
+  <div class="stat"><span class="ic bad">${svg('shieldAlert')}</span><div class="eyebrow">В блокировке</div><strong id="stat-locked">${s.lockedDown}</strong></div>
+</div>
 
 <div id="el-tabs">${filterTabs('el', tabs, 'Все', 'setElFilter')}</div>
-<div class="cardgrid" id="el-grid" style="margin-top:16px"></div>
+
+<div class="grid2" style="margin-top:16px;align-items:start">
+  <div class="cardgrid" id="el-grid"></div>
+  <section class="panel" id="floor-panel" style="position:sticky;top:82px"></section>
+</div>
 `;
 
 renderShell('elevator', content);
 renderElevators();
+renderFloorPanel();
 </script>
 </body>
 </html>

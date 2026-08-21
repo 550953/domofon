@@ -3,7 +3,7 @@
 <head>
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width, initial-scale=1">
-<title>Посылки — Vadalex Access</title>
+<title>Посылки — DoorFlow</title>
 <link rel="stylesheet" href="assets/fonts.css">
 <link rel="stylesheet" href="assets/styles.css">
 </head>
@@ -12,90 +12,253 @@
 <script src="assets/app.js"></script>
 <script>
 const DB = window.VDX_DB;
-let dFilter = 'Все';
+let dQuery = '';
+let dStatus = 'Все';
+let dLocation = 'Все';
+let foundPackage = null;
+let notFoundCode = null;
 
-function deliveryRow(d) {
-  const cls = tagClass(d.status);
+const LOCATIONS = ['Комната посылок A','Комната посылок B','Почтовая комната','Холодильная камера','Крупногабаритная зона','Стойка ресепшн'];
+const CARRIERS = ['UPS','FedEx','USPS','Amazon','DHL','Курьер','Другое'];
+const SIZES = ['Малая','Средняя','Крупная','Крупногабаритная'];
+const UNITS = ['Стойка ресепшн','Гость','Охрана',
+  'Кв. 1007','Кв. 1014','Кв. 1024','Кв. 1031','Кв. 1038','Кв. 1042','Кв. 1049','Кв. 1056','Кв. 1066','Кв. 1073',
+  'Кв. 1080','Кв. 1084','Кв. 1091','Кв. 1098','Кв. 1108','Кв. 1115','Кв. 1126','Кв. 1133','Кв. 1140','Кв. 1168',
+  'Кв. 1175','Кв. 1182','Кв. 1204','Кв. 1210','Кв. 1217','Кв. 1224','Кв. 1252'];
+const RECIPIENTS = ['Мария Гомес','Миа Дэвис','Грейс Браун','Оливия Холл','Амелия Джексон','Зои Андерсон',
+  'Житель квартиры','Управление'];
+
+function statusClass(s) {
+  if (s === 'Выдан') return 'ok';
+  if (s === 'Уведомлён') return 'info';
+  if (s === 'Получен') return 'warn';
+  return 'bad';
+}
+
+function packageRowActions(d) {
+  const btns = [];
+  if (d.status !== 'Выдан') btns.push(`<button onclick="openReleaseModal('${d.tracking}')">${svg('logOut')}Выдать</button>`);
+  btns.push(`<button onclick="printLabel('${d.tracking}')">${svg('fileText')}Этикетка</button>`);
+  btns.push(`<button class="danger" onclick="openDeleteModal('${d.tracking}')">${svg('trash')}</button>`);
+  return btns.join('');
+}
+
+function packageRow(d) {
   return `<tr>
-    <td><div class="dtname"><div><div>${d.tracking}</div><div class="dtsub">${d.carrier}</div></div></div></td>
+    <td><div class="dtname"><div><div>${d.tracking}</div><div class="dtsub">${d.carrier} · ${d.size}</div></div></div></td>
     <td>${d.unit}<div class="dtsub">${d.recipient}</div></td>
-    <td>${d.location}<div class="dtsub">${d.shelf}</div></td>
+    <td>${d.location}<div class="dtsub">Полка ${d.shelf}</div></td>
     <td class="mono">${d.code}</td>
-    <td><span class="tag ${cls}">${d.status}</span><div class="dtsub">${d.statusTime}</div></td>
-    <td>
-      <div class="rowactions">
-        ${d.status !== 'Выдан' ? `<button onclick="releasePackage('${d.tracking}')">Выдать</button>` : ''}
-        <button onclick="toast('Этикетка отправлена на печать')">${svg('fileText')}</button>
-        <button class="danger" onclick="deletePackage('${d.tracking}')">${svg('trash')}</button>
-      </div>
-    </td>
+    <td><span class="tag ${statusClass(d.status)}">${d.status}</span><div class="dtsub">${d.statusTime}</div></td>
+    <td><div class="rowactions">${packageRowActions(d)}</div></td>
   </tr>`;
 }
 
-function renderDeliveries() {
-  let rows = DB.deliveries;
-  if (dFilter !== 'Все') rows = rows.filter(d => d.status === dFilter);
-  document.getElementById('d-tbody').innerHTML = rows.length ? rows.map(deliveryRow).join('') : `<tr><td colspan="6">${emptyState('Посылок не найдено.')}</td></tr>`;
+function matchesFilters(d) {
+  if (dStatus !== 'Все' && d.status !== dStatus) return false;
+  if (dLocation !== 'Все' && d.location !== dLocation) return false;
+  if (dQuery) {
+    const q = dQuery.toLowerCase();
+    const hay = `${d.tracking} ${d.unit} ${d.recipient} ${d.code}`.toLowerCase();
+    if (!hay.includes(q)) return false;
+  }
+  return true;
 }
-function setDFilter(v) { dFilter = v; document.querySelectorAll('#d-tabs .ftab').forEach(b => b.classList.toggle('active', b.textContent === v)); renderDeliveries(); }
 
-function releasePackage(tracking) { const d = DB.deliveries.find(x=>x.tracking===tracking); if(d){ d.status='Выдан'; d.statusTime='Выдан сейчас'; } renderDeliveries(); toast('Посылка выдана'); }
-function deletePackage(tracking) { const i = DB.deliveries.findIndex(x=>x.tracking===tracking); if(i>-1) DB.deliveries.splice(i,1); renderDeliveries(); toast('Запись удалена'); }
+function renderDeliveries() {
+  const rows = DB.deliveries.filter(matchesFilters);
+  document.getElementById('d-tbody').innerHTML = rows.length ? rows.map(packageRow).join('') : `<tr><td colspan="6">${emptyState('Посылок не найдено.')}</td></tr>`;
+  renderSummary();
+}
+function renderSummary() {
+  const s = DB.deliverySummary;
+  s.awaiting = DB.deliveries.filter(d => d.status !== 'Выдан').length;
+  s.oversizedHeld = DB.deliveries.filter(d => d.status !== 'Выдан' && d.size === 'Крупногабаритная').length;
+  const el = document.getElementById('d-stats');
+  if (el) el.innerHTML = statRow([
+    { icon:'package', label:'Ожидают выдачи', value: s.awaiting },
+    { icon:'scanBarcode', label:'Принято сегодня', value: s.receivedToday },
+    { icon:'circleCheck', label:'Выдано сегодня', value: s.releasedToday },
+    { icon:'shieldAlert', label:'Крупногабаритные', value: s.oversizedHeld, bad: s.oversizedHeld > 0 },
+  ]);
+}
 
+function setDQuery(v) { dQuery = v; renderDeliveries(); }
+function setDStatus(v) { dStatus = v; renderDeliveries(); }
+function setDLocation(v) { dLocation = v; renderDeliveries(); }
+
+function printLabel(tracking) { toast('Этикетка отправлена на принтер'); }
+
+/* ============ Front desk pickup lookup ============ */
 function findPackage() {
   const code = document.getElementById('find-code').value.trim();
-  const found = DB.deliveries.find(d => d.code === code || d.tracking.includes(code));
-  toast(found ? `Найдено: ${found.tracking} · ${found.location}` : 'Ничего не найдено по этому коду');
+  if (!code) return;
+  const found = DB.deliveries.find(d => d.status !== 'Выдан' && (d.code === code || d.tracking.replace(/\s/g,'').includes(code.replace(/\s/g,''))));
+  foundPackage = found || null;
+  notFoundCode = found ? null : code;
+  renderFindResult();
+}
+function renderFindResult() {
+  const el = document.getElementById('find-result');
+  if (foundPackage) {
+    const d = foundPackage;
+    el.innerHTML = `
+      <div class="panel" style="padding:14px 16px;margin-top:14px;display:flex;justify-content:space-between;align-items:center;gap:12px;background:var(--panel-2)">
+        <div>
+          <b style="font:700 13px var(--font-display)">${d.unit} · ${d.recipient}</b>
+          <div class="hint" style="margin-top:2px">${d.carrier} · ${d.size} · ${d.tracking}</div>
+          <div class="hint" style="margin-top:2px">${d.location} — полка ${d.shelf}</div>
+        </div>
+        <button class="btn" onclick="handOverPackage('${d.tracking}')">${svg('package')}Выдать посылку</button>
+      </div>`;
+  } else if (notFoundCode) {
+    el.innerHTML = `
+      <div class="panel" style="padding:14px 16px;margin-top:14px;background:var(--red-soft)">
+        <b style="font:700 13px var(--font-display);color:var(--red)">Посылка по этому коду не найдена.</b>
+        <div class="hint" style="margin-top:2px">Проверьте код в уведомлении жителю или отсканируйте трек-номер.</div>
+      </div>`;
+  } else {
+    el.innerHTML = '';
+  }
+}
+function handOverPackage(tracking) {
+  const d = DB.deliveries.find(x => x.tracking === tracking);
+  if (d) { d.status = 'Выдан'; d.statusTime = 'Выдан сейчас'; d.handedTo = d.recipient; }
+  foundPackage = null; notFoundCode = null;
+  document.getElementById('find-code').value = '';
+  document.getElementById('find-result').innerHTML = '';
+  renderDeliveries();
+  toast(`Посылка выдана · ${d ? d.unit : ''}`);
 }
 
-function openReceivePackage() {
-  openModal('Принять посылку', `
-    <div class="formgrid">
-      ${fField('Трек-номер', fInput('rp-track','','1Z999...'))}
-      ${fField('Служба доставки', fInput('rp-carrier','','UPS · Средняя'))}
-      ${fField('Квартира / получатель', fInput('rp-unit','','Кв. 1301'))}
-      ${fField('Место хранения', fSelect('rp-loc', ['Комната посылок A','Комната посылок B','Почтовая комната','Крупногабаритная зона','Холодильная камера'], 'Комната посылок A'))}
-    </div>
+/* ============ Release package modal ============ */
+function openReleaseModal(tracking) {
+  const d = DB.deliveries.find(x => x.tracking === tracking);
+  if (!d) return;
+  openModal('Выдать посылку', `
+    <div class="hint" style="margin-bottom:14px">${d.tracking} · ${d.unit} · ${d.location} (полка ${d.shelf})</div>
+    ${fField('Кому выдано', fInput('rl-handedto', d.recipient))}
   `);
   document.getElementById('modal-root').querySelector('.modal').insertAdjacentHTML('beforeend', modalFooter(`
     <button class="btn outline" onclick="closeModal()">Отмена</button>
-    <button class="btn" onclick="saveNewPackage()">${svg('package')}Принять</button>
+    <button class="btn" onclick="confirmRelease('${tracking}')">Подтвердить выдачу</button>
   `));
+}
+function confirmRelease(tracking) {
+  const d = DB.deliveries.find(x => x.tracking === tracking);
+  const handedTo = document.getElementById('rl-handedto').value.trim() || (d ? d.recipient : '—');
+  if (d) { d.status = 'Выдан'; d.statusTime = 'Выдан сейчас'; d.handedTo = handedTo; }
+  closeModal(); renderDeliveries();
+  toast(`Посылка выдана → ${d ? d.unit : ''}`);
+}
+
+/* ============ Delete confirmation modal ============ */
+function openDeleteModal(tracking) {
+  const d = DB.deliveries.find(x => x.tracking === tracking);
+  if (!d) return;
+  openModal('Удалить запись о посылке?', `
+    <p style="margin:0;color:var(--muted);font-size:12.5px">${d.tracking} для квартиры ${d.unit} будет удалена из журнала доставок.</p>
+  `);
+  document.getElementById('modal-root').querySelector('.modal').insertAdjacentHTML('beforeend', modalFooter(`
+    <button class="btn outline" onclick="closeModal()">Отмена</button>
+    <button class="btn danger" onclick="confirmDelete('${tracking}')">Удалить</button>
+  `));
+}
+function confirmDelete(tracking) {
+  const i = DB.deliveries.findIndex(x => x.tracking === tracking);
+  if (i > -1) DB.deliveries.splice(i, 1);
+  closeModal(); renderDeliveries();
+  toast('Запись о посылке удалена');
+}
+
+/* ============ Receive package modal ============ */
+function openReceivePackage() {
+  openModal('Принять посылку', `
+    <div class="panel" style="padding:12px 14px;margin-bottom:14px;display:flex;justify-content:space-between;align-items:center;gap:12px;background:var(--panel-2)">
+      <div><b style="font:700 12.5px var(--font-display)">Скан штрихкода</b><div class="hint" style="margin-top:2px">Сканер штрихкодов на ресепшн · Zebra DS2208</div></div>
+      <button class="btn outline" onclick="scanBarcode()">${svg('scanBarcode')}Сканировать штрихкод</button>
+    </div>
+    <div class="formgrid">
+      ${fField('Трек-номер', fInput('rp-track','','1Z999AA10123456784'))}
+      ${fField('Служба доставки', fSelect('rp-carrier', CARRIERS, 'UPS'))}
+      ${fField('Размер посылки', fSelect('rp-size', SIZES, 'Средняя'))}
+      ${fField('Квартира', fSelect('rp-unit', UNITS, 'Стойка ресепшн'))}
+      ${fField('Получатель', fSelect('rp-recipient', RECIPIENTS, RECIPIENTS[0]))}
+      ${fField('Место хранения', fSelect('rp-loc', LOCATIONS, 'Комната посылок A'))}
+      ${fField('Полка / зона', fInput('rp-shelf','','A-14'))}
+    </div>
+    <div class="panel" style="padding:14px 16px;margin-top:14px">
+      <label class="detail-row" style="cursor:pointer">
+        <span><b>Уведомить квартиру сейчас</b><div class="hint" style="margin-top:2px">Отправит жителю код выдачи для ресепшн.</div></span>
+        <label class="switch"><input type="checkbox" id="rp-notify" checked><span class="slider"></span></label>
+      </label>
+      <label class="detail-row" style="cursor:pointer">
+        <span><b>Требуется подпись</b><div class="hint" style="margin-top:2px">Фиксировать подпись при выдаче посылки.</div></span>
+        <label class="switch"><input type="checkbox" id="rp-signature"><span class="slider"></span></label>
+      </label>
+      <label class="detail-row" style="cursor:pointer">
+        <span><b>Печать этикетки хранения</b><div class="hint" style="margin-top:2px">Принтер бейджей и этикеток · Zebra ZD421</div></span>
+        <label class="switch"><input type="checkbox" id="rp-label" checked><span class="slider"></span></label>
+      </label>
+    </div>
+    ${fField('Заметки (необязательно)', fTextarea('rp-notes',''), { full: true })}
+  `, {wide:true});
+  document.getElementById('modal-root').querySelector('.modal').insertAdjacentHTML('beforeend', modalFooter(`
+    <button class="btn outline" onclick="closeModal()">Отмена</button>
+    <button class="btn" onclick="saveNewPackage()">${svg('package')}Принять посылку</button>
+  `));
+}
+function scanBarcode() {
+  const tracking = 'TBA' + Math.floor(Math.random()*900000000+100000000);
+  document.getElementById('rp-track').value = tracking;
+  toast(`Штрихкод считан · ${tracking}`);
 }
 function saveNewPackage() {
   const tracking = document.getElementById('rp-track').value.trim() || ('PKG' + Math.floor(Math.random()*900000+100000));
-  DB.deliveries.unshift({ tracking, carrier: document.getElementById('rp-carrier').value || '—', unit: document.getElementById('rp-unit').value || '—',
-    recipient: '—', location: document.getElementById('rp-loc').value, shelf: '—', code: String(Math.floor(Math.random()*900000+100000)),
-    status: 'Уведомлён', statusTime: 'Уведомлён сейчас' });
+  const notify = document.getElementById('rp-notify').checked;
+  DB.deliveries.unshift({
+    tracking,
+    carrier: document.getElementById('rp-carrier').value,
+    size: document.getElementById('rp-size').value,
+    unit: document.getElementById('rp-unit').value,
+    recipient: document.getElementById('rp-recipient').value,
+    location: document.getElementById('rp-loc').value,
+    shelf: document.getElementById('rp-shelf').value || '—',
+    code: String(Math.floor(Math.random()*900000+100000)),
+    status: notify ? 'Уведомлён' : 'Получен',
+    statusTime: (notify ? 'Уведомлён' : 'Получен') + ' сейчас',
+    handedTo: ''
+  });
   closeModal(); renderDeliveries(); toast(`Посылка ${tracking} принята`);
 }
 
-const s = DB.deliverySummary;
-const tabs = ['Все','Уведомлён','Выдан'];
+const statusOpts = ['Все','Получен','Уведомлён','Выдан','Возврат'];
+const locationOpts = ['Все'].concat(LOCATIONS);
 const content = `
-${pageHead('Vadalex Tower · демо-аккаунт', 'Посылки', 'Приём посылок, место хранения, уведомления жителям и подтверждённая выдача на ресепшн.',
+${pageHead('DoorFlow Tower · демо-аккаунт', 'Посылки', 'Приём посылок, место хранения, уведомления жителям и подтверждённая выдача на ресепшн.',
   `<button class="btn" onclick="openReceivePackage()">${svg('package')}Принять посылку</button>`)}
 
-${statRow([
-  { icon:'package', label:'Ожидают выдачи', value: s.awaiting },
-  { icon:'circleCheck', label:'Принято сегодня', value: s.receivedToday },
-  { icon:'arrowUpRight', label:'Выдано сегодня', value: s.releasedToday },
-  { icon:'shieldAlert', label:'Крупногабаритные', value: s.oversizedHeld },
-])}
+<div id="d-stats"></div>
 
 <div class="panel" style="margin-bottom:16px">
-  <div class="panel-head"><div><h2>Выдача на ресепшн</h2><p>Отсканируйте код из уведомления или введите его вручную.</p></div></div>
-  <div style="display:flex;gap:8px;padding:16px 18px">
-    <input id="find-code" placeholder="Код выдачи или трек-номер" style="flex:1;border:1px solid var(--line);border-radius:8px;padding:9px 12px;font:inherit">
-    <button class="btn outline" onclick="findPackage()">${svg('search')}Найти</button>
-    <button class="btn" onclick="toast('Демо: сканер штрихкода')">${svg('scanBarcode')}Сканировать</button>
+  <div class="panel-head"><div><h2>Выдача на ресепшн</h2><p>Отсканируйте код из уведомления жителю (или введите его вручную), чтобы найти, где хранится посылка.</p></div></div>
+  <div style="display:flex;gap:8px;padding:0 18px 18px">
+    <input id="find-code" placeholder="Код выдачи или трек-номер" style="flex:1;border:1px solid var(--line);border-radius:8px;padding:9px 12px;font:inherit" onkeydown="if(event.key==='Enter')findPackage()">
+    <button class="btn outline" onclick="findPackage()">${svg('search')}Найти посылку</button>
+    <button class="btn" onclick="scanBarcode()">${svg('scanBarcode')}Сканировать</button>
   </div>
+  <div id="find-result" style="padding:0 18px 18px"></div>
 </div>
 
-<div id="d-tabs">${filterTabs('d', tabs, 'Все', 'setDFilter')}</div>
-<div class="tblwrap" style="margin-top:16px">
+${toolbar(
+  `<div class="tsearch">${svg('search')}<input placeholder="Поиск по треку, квартире, получателю или коду..." oninput="setDQuery(this.value)"></div>`,
+  `<label class="field" style="margin:0"><span>Статус</span>${fSelectOnChange('df-status', statusOpts, 'Все', 'setDStatus')}</label>
+   <label class="field" style="margin:0"><span>Место</span>${fSelectOnChange('df-loc', locationOpts, 'Все', 'setDLocation')}</label>`
+)}
+
+<div class="tblwrap" style="margin-top:0">
   <table class="dt">
-    <thead><tr><th>Трек-номер</th><th>Квартира / получатель</th><th>Хранится</th><th>Код</th><th>Статус</th><th></th></tr></thead>
+    <thead><tr><th>Трек-номер</th><th>Квартира / получатель</th><th>Хранится</th><th>Код выдачи</th><th>Статус</th><th>Действия</th></tr></thead>
     <tbody id="d-tbody"></tbody>
   </table>
 </div>

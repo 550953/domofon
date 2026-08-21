@@ -3,7 +3,7 @@
 <head>
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width, initial-scale=1">
-<title>Система — Vadalex Access</title>
+<title>Система — DoorFlow</title>
 <link rel="stylesheet" href="assets/fonts.css">
 <link rel="stylesheet" href="assets/styles.css">
 </head>
@@ -39,7 +39,7 @@ function downloadBackup() { toast('Скачивание резервной ко�
 
 const sys = DB.system;
 const content = `
-${pageHead('Vadalex Tower · демо-аккаунт', 'Состояние системы', 'Одна страница, которая говорит, справляется ли система со своей работой.',
+${pageHead('DoorFlow Tower · демо-аккаунт', 'Состояние системы', 'Одна страница, которая говорит, справляется ли система со своей работой.',
   `<button class="btn" onclick="runCheck()">${svg('refresh')}Запустить проверку</button>`)}
 
 <div class="health" style="margin-bottom:20px">
@@ -77,7 +77,7 @@ ${pageHead('Vadalex Tower · демо-аккаунт', 'Состояние си�
       <div class="detail-row"><span>Статус</span><span>Успешно</span></div>
       <div class="detail-row"><span>Следующая копия</span><span>Завтра 2:00</span></div>
       <div class="detail-row"><span>Размер</span><span>1.8 ГБ</span></div>
-      <div class="detail-row"><span>Расположение</span><span class="mono">/var/vadalex/backups</span></div>
+      <div class="detail-row"><span>Расположение</span><span class="mono">/var/doorflow/backups</span></div>
     </div>
     <div style="display:flex;gap:8px;flex-wrap:wrap">
       <button class="btn" onclick="backupNow()">${svg('database')}Создать копию сейчас</button>

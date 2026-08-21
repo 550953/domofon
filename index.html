@@ -3,7 +3,7 @@
 <head>
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width, initial-scale=1">
-<title>Дашборд — Vadalex Access</title>
+<title>Дашборд — DoorFlow</title>
 <link rel="stylesheet" href="assets/fonts.css">
 <link rel="stylesheet" href="assets/styles.css">
 </head>
@@ -34,7 +34,7 @@ function eventRow(e) {
 
 function deviceRow(d) {
   const cls = tagClass(d.status);
-  return `<div class="row device">
+  return `<a class="row device" href="device.html?id=${encodeURIComponent(d.id)}">
     <div class="left">
       <span class="dot ${cls==='bad'?'bad':cls==='warn'?'warn':''}"></span>
       <div class="info">
@@ -43,14 +43,14 @@ function deviceRow(d) {
       </div>
     </div>
     <span class="tag ${cls}">${d.status}</span>
-  </div>`;
+  </a>`;
 }
 
 const dash = DB.dashboard;
 const content = `
 <div class="pagehead">
   <div>
-    <div class="eyebrow">Vadalex Tower · демо-аккаунт</div>
+    <div class="eyebrow">DoorFlow Tower · демо-аккаунт</div>
     <h1>Доброе утро</h1>
     <p>Вот что сейчас происходит с вашей системой контроля доступа.</p>
   </div>

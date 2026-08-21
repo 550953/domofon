@@ -3,9 +3,38 @@
 <head>
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width, initial-scale=1">
-<title>События live — Vadalex Access</title>
+<title>События live — DoorFlow</title>
 <link rel="stylesheet" href="assets/fonts.css">
 <link rel="stylesheet" href="assets/styles.css">
+<style>
+.evwrap{display:grid;grid-template-columns:1fr 340px;gap:16px;align-items:start}
+.ev-list{max-height:calc(100vh - 320px);min-height:320px;overflow-y:auto}
+.row.evrow-item{cursor:pointer;border-left:3px solid transparent}
+.row.evrow-item:hover{background:var(--panel-2)}
+.row.evrow-item.selected{background:var(--brand-soft);border-left-color:var(--brand)}
+
+.evdetail{padding:18px}
+.evdetail-empty{padding:40px 20px;text-align:center;color:var(--muted);font-size:12.5px}
+.evdetail-head{display:flex;align-items:center;gap:12px}
+.evdetail-head .person{width:46px;height:46px;font-size:14px}
+.evdetail-name{font:700 14.5px var(--font-display)}
+.evdetail-sub{color:var(--muted);font-size:11.5px;margin-top:1px}
+.evdetail-tagrow{margin:12px 0 2px}
+.evdetail-doorline{display:flex;justify-content:space-between;align-items:baseline;margin-top:10px;padding-top:12px;border-top:1px dashed var(--line)}
+.evdetail-doorline b{font-size:13px}
+.evdetail-doorline span{color:var(--muted);font-size:11px;font-family:var(--font-mono)}
+
+.evrows{padding:2px 18px}
+.evrow{display:flex;justify-content:space-between;align-items:center;gap:10px;padding:11px 0;border-bottom:1px solid var(--line);font-size:12px}
+.evrow:last-child{border-bottom:0}
+.evrow .k{color:var(--muted)}
+.evrow .v{font-weight:600;text-align:right}
+.evrow .v.mono{font-family:var(--font-mono);font-size:11.5px}
+
+.evactions{display:grid;gap:8px;padding:16px 18px 18px}
+.evactions .btn{width:100%;justify-content:center}
+.evactions .btn[disabled]{opacity:.4;cursor:not-allowed;pointer-events:none}
+</style>
 </head>
 <body>
 <script src="assets/db.js"></script>
@@ -14,12 +43,25 @@
 const DB = window.VDX_DB;
 let streaming = true;
 let resultFilter = 'Все';
+let evQuery = '';
 let timer = null;
+let uidCounter = 0;
+DB.events.forEach(e => { e._uid = ++uidCounter; });
+let selectedUid = DB.events.length ? DB.events[0]._uid : null;
+
+function findPerson(name) { return DB.people.find(p => p.name === name) || null; }
+function findDoor(name) { return DB.doors.find(d => d.name === name) || null; }
+function findDevice(doorName) { return DB.devices.find(d => d.name.split(' · ')[0] === doorName) || null; }
+function deviceEventId(e) {
+  if (!e._devId) e._devId = 'FR-' + (100000 + ((e._uid * 3767) % 900000));
+  return e._devId;
+}
 
 function eventRow(e) {
   const cls = tagClass(e.result);
-  return `<div class="row">
-    <span class="person ${cls==='bad'?'bad':cls==='warn'?'warn':''}">${e.initials}</span>
+  const sel = e._uid === selectedUid ? 'selected' : '';
+  return `<div class="row evrow-item ${sel}" onclick="selectEvent(${e._uid})">
+    <span class="person ${cls==='bad'?'bad':''}">${e.initials || svg('scanFace')}</span>
     <div class="info">
       <div class="name">${e.person} ${e.unit ? `<span>${e.unit}</span>` : ''}</div>
       <div class="meta">
@@ -35,23 +77,97 @@ function eventRow(e) {
   </div>`;
 }
 
-function renderEvents() {
-  let rows = DB.events;
-  if (resultFilter !== 'Все') rows = rows.filter(e => e.result === resultFilter);
-  document.getElementById('ev-rows').innerHTML = rows.length ? rows.map(eventRow).join('') : emptyState('Событий по этому фильтру нет.');
+function matchesEv(e) {
+  if (resultFilter !== 'Все' && e.result !== resultFilter) return false;
+  if (evQuery) {
+    const q = evQuery.toLowerCase();
+    if (!e.person.toLowerCase().includes(q) && !e.door.toLowerCase().includes(q)) return false;
+  }
+  return true;
 }
-function setResultFilter(v) { resultFilter = v; document.querySelectorAll('#ev-tabs .ftab').forEach(b => b.classList.toggle('active', b.textContent === v)); renderEvents(); }
 
-const names = [['Анна Петрова','АП'],['Марк Ли','МЛ'],['Дмитрий Соколов','ДС'],['Елена Варгас','ЕВ'],['Игорь Волков','ИВ']];
-const doors = DB.doors.map(d=>d.name);
+function renderEvents() {
+  const rows = DB.events.filter(matchesEv);
+  document.getElementById('ev-rows').innerHTML = rows.length ? rows.map(eventRow).join('') : emptyState('Событий по этому фильтру нет.');
+  if (!rows.find(e => e._uid === selectedUid)) selectedUid = rows.length ? rows[0]._uid : null;
+  renderDetail();
+}
+
+function selectEvent(uid) {
+  selectedUid = uid;
+  document.querySelectorAll('.evrow-item').forEach(el => el.classList.remove('selected'));
+  renderEvents();
+}
+
+function detailRow(k, v, mono) {
+  return `<div class="evrow"><span class="k">${k}</span><span class="v ${mono?'mono':''}">${v}</span></div>`;
+}
+
+function renderDetail() {
+  const box = document.getElementById('ev-detail');
+  const e = DB.events.find(ev => ev._uid === selectedUid);
+  if (!e) { box.innerHTML = `<div class="evdetail-empty">Выберите событие из списка слева, чтобы увидеть подробности.</div>`; return; }
+
+  const cls = tagClass(e.result);
+  const person = findPerson(e.person);
+  const door = findDoor(e.door);
+  const device = findDevice(e.door);
+
+  box.innerHTML = `
+    <div class="evdetail">
+      <div class="evdetail-head">
+        <span class="person ${cls==='bad'?'bad':''}">${e.initials || svg('scanFace')}</span>
+        <div>
+          <div class="evdetail-name">${e.person}</div>
+          <div class="evdetail-sub">${e.unit || 'Личность не подтверждена'}</div>
+        </div>
+      </div>
+      <div class="evdetail-tagrow"><span class="tag ${cls}">${e.result}</span></div>
+      <div class="evdetail-doorline"><b>${e.door}</b><span>${e.time}</span></div>
+    </div>
+    <div class="evrows">
+      ${detailRow('Дверь', door ? door.name : e.door)}
+      ${detailRow('Устройство', device ? device.name : '—')}
+      ${detailRow('Время', e.time, true)}
+      ${detailRow('Результат', `<span class="tag ${cls}">${e.result}</span>`)}
+      ${detailRow('Тип учётных данных', e.credential === 'лицо' ? 'Лицо' : 'Карта')}
+      ${detailRow('Уверенность распознавания', e.confidence ? e.confidence + '%' : 'Не применимо')}
+      ${detailRow('ID события устройства', deviceEventId(e), true)}
+    </div>
+    <div class="evactions">
+      <a class="btn outline" ${person ? `href="person.html?id=${person.id}"` : 'disabled'}>${svg('people')}Профиль человека</a>
+      <a class="btn outline" ${door ? `href="door.html?id=${door.id}"` : 'disabled'}>${svg('doors')}Открыть дверь</a>
+      <a class="btn outline" ${device ? `href="device.html?id=${device.id}"` : 'disabled'}>${svg('devices')}Открыть устройство</a>
+    </div>`;
+}
+
+function setResultFilter(v) {
+  resultFilter = v;
+  document.querySelectorAll('#ev-tabs .ftab').forEach(b => b.classList.toggle('active', b.textContent === v));
+  renderEvents();
+}
+function setEvQuery(v) { evQuery = v.trim(); renderEvents(); }
+
+const RAND_RESULTS = ['Разрешено','Разрешено','Разрешено','Отказано','Дверь открыта','Доступ истёк'];
 function pushRandomEvent() {
-  const n = names[Math.floor(Math.random()*names.length)];
-  const results = ['Разрешено','Разрешено','Разрешено','Отказано'];
-  const r = results[Math.floor(Math.random()*results.length)];
+  const withPerson = Math.random() > 0.12;
+  const p = withPerson ? DB.people[Math.floor(Math.random() * DB.people.length)] : null;
+  const door = DB.doors[Math.floor(Math.random() * 8)]; // reuse the doors that already appear in the stream
+  const r = RAND_RESULTS[Math.floor(Math.random() * RAND_RESULTS.length)];
   const now = new Date();
   const time = now.toLocaleTimeString('ru-RU');
-  DB.events.unshift({ person: n[0], initials: n[1], unit: null, door: doors[Math.floor(Math.random()*doors.length)],
-    credential: Math.random()>0.4?'лицо':'карта', confidence: Math.random()>0.4 ? (90+Math.random()*9).toFixed(1) : null, result: r, time });
+  const useFace = Math.random() > 0.4;
+  DB.events.unshift({
+    _uid: ++uidCounter,
+    person: p ? p.name : 'Неизвестный человек',
+    initials: p ? p.initials : null,
+    unit: p ? (p.unit || p.role) : null,
+    door: door.name,
+    credential: useFace ? 'лицо' : 'карта',
+    confidence: useFace ? (90 + Math.random() * 9).toFixed(1) : null,
+    result: p ? r : 'Не опознан',
+    time
+  });
   if (DB.events.length > 60) DB.events.pop();
   renderEvents();
 }
@@ -67,17 +183,27 @@ function startStream() { timer = setInterval(pushRandomEvent, 4000); }
 
 const tabs = ['Все','Разрешено','Отказано','Не опознан','Доступ истёк','Дверь открыта','Взлом двери'];
 const content = `
-${pageHead('Vadalex Tower · демо-аккаунт', 'События live', 'Всё, что происходит у ваших дверей — в реальном времени.',
+${pageHead('DoorFlow Tower · демо-аккаунт', 'События live', 'Всё, что происходит у ваших дверей — в реальном времени.',
   `<div style="display:flex;gap:8px;align-items:center">
      <span class="pill ok" id="stream-pill">${svg('pulse')}Трансляция</span>
      <button class="btn outline" id="stream-btn" onclick="toggleStream()">${svg('pulse')}Пауза</button>
    </div>`)}
 
-<div id="ev-tabs">${filterTabs('ev', tabs, 'Все', 'setResultFilter')}</div>
-<section class="panel" style="margin-top:16px">
-  <div class="panel-head"><div><h2>Поток событий</h2><p>Новые события появляются сверху</p></div></div>
-  <div class="rows" id="ev-rows"></div>
-</section>
+<div class="toolbar" style="margin-bottom:14px">
+  <div class="tb-left"><div class="tsearch">${svg('search')}<input placeholder="Поиск по человеку или двери..." oninput="setEvQuery(this.value)"></div></div>
+  <div class="tb-right" id="ev-tabs">${filterTabs('ev', tabs, 'Все', 'setResultFilter')}</div>
+</div>
+
+<div class="evwrap">
+  <section class="panel">
+    <div class="panel-head"><div><h2>Поток событий</h2><p>Новые события появляются сверху</p></div></div>
+    <div class="rows ev-list" id="ev-rows"></div>
+  </section>
+  <section class="panel" style="position:sticky;top:16px">
+    <div class="panel-head"><div><h2>Детали события</h2></div></div>
+    <div id="ev-detail"></div>
+  </section>
+</div>
 `;
 
 renderShell('live-events', content);

@@ -3,7 +3,7 @@
 <head>
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width, initial-scale=1">
-<title>Посетители — Vadalex Access</title>
+<title>Посетители — DoorFlow</title>
 <link rel="stylesheet" href="assets/fonts.css">
 <link rel="stylesheet" href="assets/styles.css">
 </head>
@@ -12,77 +12,207 @@
 <script src="assets/app.js"></script>
 <script>
 const DB = window.VDX_DB;
-let vFilter = 'Все';
+let vQuery = '';
+let vStatus = 'Все';
+let vType = 'Все';
+
+const DESTINATION_UNITS = ['Лобби','Ресепшн','Гость','Охрана',
+  'Кв. 1007','Кв. 1014','Кв. 1024','Кв. 1031','Кв. 1038','Кв. 1042','Кв. 1049','Кв. 1056','Кв. 1066','Кв. 1073',
+  'Кв. 1080','Кв. 1084','Кв. 1091','Кв. 1098','Кв. 1108','Кв. 1115','Кв. 1126','Кв. 1133','Кв. 1140','Кв. 1168',
+  'Кв. 1175','Кв. 1182','Кв. 1204','Кв. 1210','Кв. 1217','Кв. 1224','Кв. 1252'];
+const HOSTS = ['Мария Гомес','Миа Дэвис','Грейс Браун','Оливия Холл','Амелия Гарсия','Зои Джонсон',
+  'Софи Марино','Управление','Ресепшн'];
+const VISITOR_TYPES = ['Гость','Подрядчик','Поставщик','Сервис','Доставка','Собеседование'];
+const DOC_TYPES = ['Водит. удостоверение','Паспорт','ID-карта','Пропуск подрядчика','Нет'];
+const COMPLIANCE_STATUSES = ['Проверен','На проверке','Нет страховки','Истёк','Не требуется'];
+
+function statusClass(s) {
+  if (s === 'На месте') return 'ok';
+  if (s === 'Ожидается') return 'warn';
+  if (s === 'Отказано') return 'bad';
+  return 'info';
+}
+function verifyClass(v) {
+  if (v === 'Проверен') return 'ok';
+  if (v === 'Не требуется') return 'info';
+  if (v === 'На проверке') return 'warn';
+  return 'bad';
+}
+
+function visitorRowActions(v) {
+  const btns = [];
+  if (v.status === 'Ожидается') {
+    btns.push(`<button onclick="checkIn('${v.name}')">${svg('logOut')}Впустить</button>`);
+    if (v.verify === 'Нет страховки' || v.verify === 'Истёк') {
+      btns.push(`<button class="danger" onclick="denyEntry('${v.name}')">${svg('close')}Отказать</button>`);
+    }
+  } else if (v.status === 'На месте') {
+    btns.push(`<button onclick="checkOut('${v.name}')">${svg('logOut')}Выпустить</button>`);
+  } else {
+    btns.push(`<button onclick="checkIn('${v.name}')">${svg('logOut')}Впустить</button>`);
+  }
+  btns.push(`<button onclick="printBadge('${v.name}')">${svg('scanBarcode')}Бейдж</button>`);
+  btns.push(`<button class="danger" onclick="deleteVisitor('${v.name}')">${svg('trash')}</button>`);
+  return btns.join('');
+}
 
 function visitorRow(v) {
-  const cls = v.status === 'На месте' ? 'ok' : (v.status === 'Ожидается' ? 'warn' : 'bad');
   return `<tr>
-    <td><div class="dtname"><div><div>${v.name}</div><div class="dtsub">${v.company}</div></div></div></td>
-    <td>${v.type}</td>
+    <td><div class="dtname"><div><div>${v.name}</div><div class="dtsub">${v.company}${v.escort ? ' · Сопровождение' : ''}</div></div></div></td>
+    <td><span class="tag info">${v.type}</span></td>
     <td>${v.unit}<div class="dtsub">${v.host}</div></td>
-    <td>${v.doc}<div class="dtsub">${v.docNo}</div></td>
-    <td><span class="tag ${cls}">${v.status}</span><div class="dtsub">${v.time}</div></td>
-    <td>
-      <div class="rowactions">
-        ${v.status === 'Ожидается' ? `<button onclick="checkIn('${v.name}')">Впустить</button>` : `<button onclick="checkOut('${v.name}')">Выпустить</button>`}
-        <button class="danger" onclick="deleteVisitor('${v.name}')">${svg('trash')}</button>
-      </div>
-    </td>
+    <td>${v.doc}<div class="dtsub">${v.docNo}${v.scanned && v.scanned !== '—' ? ' · отсканирован ' + v.scanned : ''}</div></td>
+    <td><span class="tag ${verifyClass(v.verify)}">${v.verify}</span>${v.contract && v.contract !== '—' ? `<div class="dtsub">${v.contract}</div>` : ''}</td>
+    <td><span class="tag ${statusClass(v.status)}">${v.status}</span><div class="dtsub">${v.time}</div></td>
+    <td><div class="rowactions">${visitorRowActions(v)}</div></td>
   </tr>`;
 }
 
-function renderVisitors() {
-  let rows = DB.visitors;
-  if (vFilter !== 'Все') rows = rows.filter(v => v.type === vFilter);
-  document.getElementById('v-tbody').innerHTML = rows.length ? rows.map(visitorRow).join('') : `<tr><td colspan="6">${emptyState('Посетителей не найдено.')}</td></tr>`;
+function matchesFilters(v) {
+  if (vStatus !== 'Все' && v.status !== vStatus) return false;
+  if (vType !== 'Все' && v.type !== vType) return false;
+  if (vQuery) {
+    const q = vQuery.toLowerCase();
+    const hay = `${v.name} ${v.company} ${v.unit} ${v.docNo}`.toLowerCase();
+    if (!hay.includes(q)) return false;
+  }
+  return true;
 }
-function setVFilter(v) { vFilter = v; document.querySelectorAll('#v-tabs .ftab').forEach(b => b.classList.toggle('active', b.textContent === v)); renderVisitors(); }
 
-function checkIn(name) { const v = DB.visitors.find(x=>x.name===name); if(v){ v.status='На месте'; v.time='Сейчас'; } renderVisitors(); toast(`${name} впущен(а)`); }
-function checkOut(name) { const v = DB.visitors.find(x=>x.name===name); if(v){ v.status='Ушёл'; } renderVisitors(); toast(`${name} выписан(а)`); }
+function renderVisitors() {
+  const rows = DB.visitors.filter(matchesFilters);
+  document.getElementById('v-tbody').innerHTML = rows.length ? rows.map(visitorRow).join('') : `<tr><td colspan="7">${emptyState('Посетителей не найдено.')}</td></tr>`;
+  renderSummary();
+}
+function renderSummary() {
+  const s = DB.visitorSummary;
+  s.onSite = DB.visitors.filter(v => v.status === 'На месте').length;
+  s.expected = DB.visitors.filter(v => v.status === 'Ожидается').length;
+  s.contractors = DB.visitors.filter(v => v.status === 'На месте' && v.type === 'Подрядчик').length;
+  s.holds = DB.visitors.filter(v => v.verify === 'Нет страховки' || v.verify === 'Истёк').length;
+  const el = document.getElementById('v-stats');
+  if (el) el.innerHTML = statRow([
+    { icon:'visitors', label:'На месте сейчас', value: s.onSite },
+    { icon:'clock', label:'Ожидается сегодня', value: s.expected },
+    { icon:'key', label:'Подрядчики на месте', value: s.contractors },
+    { icon:'shieldAlert', label:'Проблемы допуска', value: s.holds, bad: true },
+  ]);
+}
+
+function setVQuery(v) { vQuery = v; renderVisitors(); }
+function setVStatus(v) { vStatus = v; renderVisitors(); }
+function setVType(v) { vType = v; renderVisitors(); }
+
+function checkIn(name) { const v = DB.visitors.find(x=>x.name===name); if(v){ v.status='На месте'; v.time='Сейчас'; } renderVisitors(); toast('Посетитель впущен'); }
+function checkOut(name) { const v = DB.visitors.find(x=>x.name===name); if(v){ v.status='Ушёл'; v.time = (v.time || '') + ' → ' + 'сейчас'; } renderVisitors(); toast('Посетитель выписан'); }
+function denyEntry(name) { const v = DB.visitors.find(x=>x.name===name); if(v){ v.status='Отказано'; } renderVisitors(); toast('Посетителю отказано во входе'); }
+function printBadge(name) { toast('Бейдж отправлен на принтер этикеток'); }
 function deleteVisitor(name) { const i = DB.visitors.findIndex(x=>x.name===name); if(i>-1) DB.visitors.splice(i,1); renderVisitors(); toast('Запись удалена'); }
 
+/* ============ Register visitor modal ============ */
 function openRegisterVisitor() {
   openModal('Зарегистрировать посетителя', `
-    <div class="formgrid">
-      ${fField('Имя', fInput('rv-name','','Имя и фамилия'))}
-      ${fField('Тип', fSelect('rv-type', ['Гость','Подрядчик','Поставщик'], 'Гость'))}
-      ${fField('Квартира / принимающий', fInput('rv-unit','','Кв. 1204'))}
-      ${fField('Хост', fInput('rv-host','','Кто принимает'))}
-      ${fField('Документ', fSelect('rv-doc', ['ID-карта','Паспорт','Водит. удост.'], 'ID-карта'))}
-      ${fField('Номер документа', fInput('rv-docno','',''))}
+    <div class="panel" style="padding:12px 14px;margin-bottom:14px;display:flex;justify-content:space-between;align-items:center;gap:12px;background:var(--panel-2)">
+      <div><b style="font:700 12.5px var(--font-display)">Скан ID / паспорта</b><div class="hint" style="margin-top:2px">Lobby ID / Passport Reader · Regula 7310</div></div>
+      <button class="btn outline" onclick="scanDocument()">${svg('scanBarcode')}Сканировать документ</button>
     </div>
+    <div class="formgrid">
+      ${fField('Имя', fInput('rv-first',''))}
+      ${fField('Фамилия', fInput('rv-last',''))}
+      ${fField('Тип посетителя', fSelect('rv-type', VISITOR_TYPES, 'Гость'))}
+      ${fField('Компания (необязательно)', fInput('rv-company',''))}
+      ${fField('Квартира назначения', fSelect('rv-unit', DESTINATION_UNITS, 'Ресепшн'))}
+      ${fField('Хост', fSelect('rv-host', HOSTS, HOSTS[0]))}
+      ${fField('Телефон (необязательно)', fInput('rv-phone',''))}
+      ${fField('Цель визита', fInput('rv-purpose',''))}
+      ${fField('Тип документа', fSelect('rv-doctype', DOC_TYPES, 'Водит. удостоверение'))}
+      ${fField('Номер документа', fInput('rv-docno',''))}
+      ${fField('Статус договора / допуска', fSelect('rv-compliance', COMPLIANCE_STATUSES, 'Не требуется'))}
+      ${fField('Договор действителен до (необязательно)', fInput('rv-contractuntil','','31 дек 2026'))}
+    </div>
+    <div class="panel" style="padding:14px 16px;margin-top:14px">
+      <label class="detail-row" style="cursor:pointer">
+        <span><b>Впустить сейчас</b><div class="hint" style="margin-top:2px">Выкл. = предварительная регистрация ожидаемого прибытия.</div></span>
+        <label class="switch"><input type="checkbox" id="rv-checkin" checked onchange="toggleExpectedArrival()"><span class="slider"></span></label>
+      </label>
+      <div id="rv-expected-wrap" class="detail-row" style="display:none">
+        <span>Ожидаемое время прибытия</span>
+        <input id="rv-expected" style="max-width:220px" placeholder="Завтра 09:00">
+      </div>
+      <label class="detail-row" style="cursor:pointer">
+        <span><b>Требуется сопровождение</b><div class="hint" style="margin-top:2px">Посетитель не может перемещаться по зданию самостоятельно.</div></span>
+        <label class="switch"><input type="checkbox" id="rv-escort"><span class="slider"></span></label>
+      </label>
+      <label class="detail-row" style="cursor:pointer">
+        <span><b>Печать бейджа</b><div class="hint" style="margin-top:2px">Принтер бейджей и этикеток · Zebra ZD421</div></span>
+        <label class="switch"><input type="checkbox" id="rv-badge" checked><span class="slider"></span></label>
+      </label>
+    </div>
+    ${fField('Заметки (необязательно)', fTextarea('rv-notes',''), { full: true })}
   `, {wide:true});
   document.getElementById('modal-root').querySelector('.modal').insertAdjacentHTML('beforeend', modalFooter(`
     <button class="btn outline" onclick="closeModal()">Отмена</button>
     <button class="btn" onclick="saveNewVisitor()">${svg('visitors')}Зарегистрировать</button>
   `));
 }
+const SCAN_PROFILES = [
+  { first:'Дэниел', last:'Круз', doc:'Водит. удостоверение', docNo:'NY-D' + Math.floor(Math.random()*9000000+1000000) },
+  { first:'Ирина', last:'Соколова', doc:'Паспорт', docNo:'RU-' + Math.floor(Math.random()*90000000+10000000) },
+  { first:'Артём', last:'Волков', doc:'ID-карта', docNo:'ID-' + Math.floor(Math.random()*90000+10000) },
+];
+function scanDocument() {
+  const p = SCAN_PROFILES[Math.floor(Math.random() * SCAN_PROFILES.length)];
+  document.getElementById('rv-first').value = p.first;
+  document.getElementById('rv-last').value = p.last;
+  document.getElementById('rv-doctype').value = p.doc;
+  document.getElementById('rv-docno').value = p.docNo;
+  toast(`Документ считан · ${p.first} ${p.last}`);
+}
+function toggleExpectedArrival() {
+  const on = document.getElementById('rv-checkin').checked;
+  document.getElementById('rv-expected-wrap').style.display = on ? 'none' : 'flex';
+}
 function saveNewVisitor() {
-  const name = document.getElementById('rv-name').value.trim() || 'Новый посетитель';
-  DB.visitors.unshift({ name, company: '—', type: document.getElementById('rv-type').value, unit: document.getElementById('rv-unit').value || '—',
-    host: document.getElementById('rv-host').value || '—', doc: document.getElementById('rv-doc').value, docNo: document.getElementById('rv-docno').value || '—',
-    scanned: 'Сейчас', verify: 'Проверен', contract: '—', status: 'На месте', time: 'Сейчас' });
+  const first = document.getElementById('rv-first').value.trim();
+  const last = document.getElementById('rv-last').value.trim();
+  const name = (first + ' ' + last).trim() || 'Новый посетитель';
+  const company = document.getElementById('rv-company').value.trim() || '—';
+  const checkInNow = document.getElementById('rv-checkin').checked;
+  const escort = document.getElementById('rv-escort').checked;
+  DB.visitors.unshift({
+    name, company,
+    type: document.getElementById('rv-type').value,
+    unit: document.getElementById('rv-unit').value,
+    host: document.getElementById('rv-host').value,
+    doc: document.getElementById('rv-doctype').value,
+    docNo: document.getElementById('rv-docno').value || '—',
+    scanned: checkInNow ? 'Сейчас' : '—',
+    verify: document.getElementById('rv-compliance').value,
+    contract: document.getElementById('rv-contractuntil').value || '—',
+    status: checkInNow ? 'На месте' : 'Ожидается',
+    time: checkInNow ? 'Сейчас' : (document.getElementById('rv-expected').value || 'Ожидается'),
+    escort
+  });
   closeModal(); renderVisitors(); toast(`${name} зарегистрирован(а)`);
 }
 
-const s = DB.visitorSummary;
-const tabs = ['Все','Гость','Подрядчик','Поставщик'];
+const tabs = ['Все'].concat(VISITOR_TYPES);
+const statusOpts = ['Все','Ожидается','На месте','Ушёл','Отказано'];
 const content = `
-${pageHead('Vadalex Tower · демо-аккаунт', 'Посетители', 'Каждый гость, подрядчик и поставщик, входящий в здание — регистрация, проверка и пропуск.',
+${pageHead('DoorFlow Tower · демо-аккаунт', 'Посетители', 'Каждый гость, подрядчик и поставщик, входящий в здание — регистрация, проверка и пропуск.',
   `<button class="btn" onclick="openRegisterVisitor()">${svg('visitors')}Зарегистрировать посетителя</button>`)}
 
-${statRow([
-  { icon:'visitors', label:'На месте сейчас', value: s.onSite },
-  { icon:'clock', label:'Ожидается сегодня', value: s.expected },
-  { icon:'key', label:'Подрядчики на месте', value: s.contractors },
-  { icon:'shieldAlert', label:'Проблемы допуска', value: s.holds, bad: true },
-])}
+<div id="v-stats"></div>
 
-<div id="v-tabs">${filterTabs('v', tabs, 'Все', 'setVFilter')}</div>
-<div class="tblwrap" style="margin-top:16px">
+${toolbar(
+  `<div class="tsearch">${svg('search')}<input placeholder="Поиск по посетителю, компании, квартире или бейджу..." oninput="setVQuery(this.value)"></div>`,
+  `<label class="field" style="margin:0"><span>Статус</span>${fSelectOnChange('vf-status', statusOpts, 'Все', 'setVStatus')}</label>
+   <label class="field" style="margin:0"><span>Тип</span>${fSelectOnChange('vf-type', tabs, 'Все', 'setVType')}</label>`
+)}
+
+<div class="tblwrap" style="margin-top:0">
   <table class="dt">
-    <thead><tr><th>Посетитель</th><th>Тип</th><th>Квартира / хост</th><th>Документ</th><th>Статус</th><th></th></tr></thead>
+    <thead><tr><th>Посетитель</th><th>Тип</th><th>Квартира / хост</th><th>Документ</th><th>Договор</th><th>Статус</th><th>Действия</th></tr></thead>
     <tbody id="v-tbody"></tbody>
   </table>
 </div>

@@ -3,7 +3,7 @@
 <head>
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width, initial-scale=1">
-<title>Устройства — Vadalex Access</title>
+<title>Устройства — DoorFlow</title>
 <link rel="stylesheet" href="assets/fonts.css">
 <link rel="stylesheet" href="assets/styles.css">
 </head>
@@ -17,8 +17,9 @@ let devTypeFilter = 'Все';
 
 function deviceRow(d) {
   const cls = tagClass(d.status);
+  const href = `device.html?id=${encodeURIComponent(d.id)}`;
   return `<tr>
-    <td><div class="dtname"><span class="dot ${cls==='bad'?'bad':cls==='warn'?'warn':''}"></span><div><div>${d.name}</div><div class="dtsub">${d.type}</div></div></div></td>
+    <td><a class="dtname" href="${href}"><span class="dot ${cls==='bad'?'bad':cls==='warn'?'warn':''}"></span><div><div>${d.name}</div><div class="dtsub">${d.type}</div></div></a></td>
     <td class="mono">${d.ip}</td>
     <td>${d.model}</td>
     <td class="mono">${d.serial}</td>
@@ -27,8 +28,9 @@ function deviceRow(d) {
     <td>${d.lastSync}</td>
     <td>
       <div class="rowactions">
-        <button onclick="syncDevice('${d.name.replace(/'/g,"")}')">${svg('refresh')}</button>
-        <button class="danger" onclick="deleteDevice('${d.name.replace(/'/g,"")}')">${svg('trash')}</button>
+        <a href="${href}">${svg('penLine')}</a>
+        <button onclick="syncDevice('${d.id}')">${svg('refresh')}</button>
+        <button class="danger" onclick="deleteDevice('${d.id}')">${svg('trash')}</button>
       </div>
     </td>
   </tr>`;
@@ -44,37 +46,15 @@ function renderDevices() {
 function setDevFilter(v) { devFilter = v; document.querySelectorAll('#dev-tabs .ftab').forEach(b => b.classList.toggle('active', b.textContent === v)); renderDevices(); }
 function setDevType(v) { devTypeFilter = v; renderDevices(); }
 
-function syncDevice(name) { const d = DB.devices.find(x=>x.name===name); if(d){ d.status='Онлайн'; d.lastSync='Только что'; } renderDevices(); toast(`«${name}» синхронизировано`); }
-function deleteDevice(name) { const i = DB.devices.findIndex(x=>x.name===name); if(i>-1) DB.devices.splice(i,1); renderDevices(); toast('Устройство удалено'); }
-
-function openAddDevice() {
-  openModal('Добавить устройство', `
-    <div class="formgrid">
-      ${fField('Название', fInput('nde-name','','Например, Терраса · считыватель'))}
-      ${fField('Тип', fSelect('nde-type', ['Терминал распознавания лиц','Контроллер двери','Считыватель','IP-камера','Домофонная станция'], 'Считыватель'))}
-      ${fField('IP-адрес', fInput('nde-ip','','192.168.10.50'))}
-      ${fField('Модель', fInput('nde-model','','RD-100'))}
-    </div>
-  `);
-  document.getElementById('modal-root').querySelector('.modal').insertAdjacentHTML('beforeend', modalFooter(`
-    <button class="btn outline" onclick="closeModal()">Отмена</button>
-    <button class="btn" onclick="saveNewDevice()">Добавить</button>
-  `));
-}
-function saveNewDevice() {
-  const name = document.getElementById('nde-name').value.trim() || 'Новое устройство';
-  DB.devices.unshift({ name, type: document.getElementById('nde-type').value, ip: document.getElementById('nde-ip').value || '—',
-    model: document.getElementById('nde-model').value || '—', serial: 'SN' + Math.floor(Math.random()*90000+10000),
-    status: 'Онлайн', db: '—', lastSync: 'Только что', firmware: '1.0.0' });
-  closeModal(); renderDevices(); toast(`«${name}» добавлено`);
-}
+function syncDevice(id) { const d = DB.devices.find(x=>x.id===id); if(d){ d.status='Онлайн'; d.lastSync='Только что'; d.pendingChanges=0; d.syncStatus='Синхронизировано'; } renderDevices(); toast(`«${d ? d.name : ''}» синхронизировано`); }
+function deleteDevice(id) { const d = DB.devices.find(x=>x.id===id); const i = DB.devices.findIndex(x=>x.id===id); if(i>-1) DB.devices.splice(i,1); renderDevices(); toast(`«${d ? d.name : 'Устройство'}» удалено`); }
 
 const s = DB.system.devices;
 const tabs = ['Все','Онлайн','Офлайн','Нужна синхр.'];
 const types = ['Все','Терминал распознавания лиц','Контроллер двери','Считыватель','IP-камера','Домофонная станция'];
 const content = `
-${pageHead('Vadalex Tower · демо-аккаунт', 'Устройства', 'Управляйте считывателями лиц, контроллерами, IP-камерами и подключённым оборудованием.',
-  `<button class="btn" onclick="openAddDevice()">${svg('plus')}Добавить устройство</button>`)}
+${pageHead('DoorFlow Tower · демо-аккаунт', 'Устройства', 'Управляйте считывателями лиц, контроллерами, IP-камерами и подключённым оборудованием.',
+  `<a class="btn" href="device-new.html">${svg('plus')}Добавить устройство</a>`)}
 
 ${statRow([
   { icon:'devices', label:'Устройства', value: s.total },

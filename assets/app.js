@@ -1,4 +1,4 @@
-// Vadalex Access — общий слой для «editorial» дизайна.
+// DoorFlow — общий слой для «editorial» дизайна.
 // Иконки — инлайн SVG (без CDN, работает офлайн), сайдбар/шапка, рендер-хелперы.
 
 const ICON = {
@@ -50,6 +50,8 @@ const ICON = {
   upload:'<path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"/><path d="M17 8l-5-5-5 5"/><path d="M12 3v12"/>',
   clock:'<circle cx="12" cy="12" r="10"/><path d="M12 6v6l4 2"/>',
   key:'<path d="m15.5 7.5 2.3 2.3a1 1 0 0 0 1.4 0l1.3-1.3a1 1 0 0 0 0-1.4L18.2 5"/><path d="m21.9 6.1-9.4 9.4"/><circle cx="6" cy="18" r="4"/>',
+  logoMark:'<path d="M4 3v18"/><path d="M4 3 15.5 6.2v11.6L4 21"/><path d="M9.5 12h7"/><path d="M19 9l3 3-3 3"/>',
+  printer:'<path d="M6 18H4a2 2 0 0 1-2-2v-5a2 2 0 0 1 2-2h16a2 2 0 0 1 2 2v5a2 2 0 0 1-2 2h-2"/><path d="M6 9V4a1 1 0 0 1 1-1h10a1 1 0 0 1 1 1v5"/><rect x="6" y="14" width="12" height="8"/>',
 };
 
 function svg(name, cls) {
@@ -72,6 +74,84 @@ const NAV = [
   { key:'system', label:'Система', href:'system.html', icon:'system' },
 ];
 
+function qs(name) {
+  return new URLSearchParams(window.location.search).get(name);
+}
+function initialsOf(name) {
+  return (name || '').split(' ').map(w => w[0]).join('').toUpperCase().slice(0, 2) || '—';
+}
+
+/* ---------- wizard engine (full-page multi-step flows) ---------- */
+function wizardSteps(items, activeIndex) {
+  return `<div class="wsteps">${items.map((label, i) => {
+    const state = i < activeIndex ? 'done' : (i === activeIndex ? 'active' : 'todo');
+    return `<div class="wstep ${state}"><span class="num">${state === 'done' ? svg('circleCheck') : i + 1}</span>${i + 1} ${label}</div>`;
+  }).join('')}</div>`;
+}
+function wizardPage(opts) {
+  return `<div class="wizardhead">
+    <div><h1>${opts.title}</h1><p>${opts.sub}</p></div>
+    <a class="wcancel" href="${opts.cancelHref}">Отмена</a>
+  </div>
+  ${opts.stepsHTML}
+  <div class="wizardcard">
+    <div class="wizardcard-head">${opts.cardTitle}</div>
+    <div class="wizardcard-body">${opts.bodyHTML}</div>
+    <div class="wizardcard-foot">${opts.footHTML}</div>
+  </div>`;
+}
+function miniSteps(items, activeIndex) {
+  return `<div class="msteps">${items.map((label, i) => {
+    const state = i < activeIndex ? 'done' : (i === activeIndex ? 'active' : 'todo');
+    return `${i > 0 ? '<span class="msep">/</span>' : ''}<span class="mstep ${state}"><span class="dot">${state === 'done' ? svg('circleCheck') : i + 1}</span>${label}</span>`;
+  }).join('')}</div>`;
+}
+
+/* ---------- detail-page tab bar ---------- */
+function tabsBar(items, active, onClickFn) {
+  return `<div class="tabsbar">${items.map(t =>
+    `<button class="tabitem ${t === active ? 'active' : ''}" onclick="${onClickFn}('${t}')">${t}</button>`
+  ).join('')}</div>`;
+}
+
+/* ---------- notifications ---------- */
+function notifIcon(level) {
+  if (level === 'bad') return 'shieldAlert';
+  if (level === 'warn') return 'shieldAlert';
+  if (level === 'ok') return 'circleCheck';
+  return 'devices';
+}
+function notifItem(n, compact) {
+  return `<div class="nitem">
+    <span class="ndot ${n.level}"></span>
+    <div class="ntx"><b>${n.title}</b><p>${n.body}</p></div>
+    ${compact ? `<span class="ntime">${n.time}</span>` : `<span class="ntime">${n.time}</span>`}
+  </div>`;
+}
+function toggleNotifDrop() {
+  const el = document.getElementById('notif-drop');
+  if (!el) return;
+  const willOpen = el.style.display === 'none' || !el.style.display;
+  el.style.display = willOpen ? 'block' : 'none';
+}
+function markAllRead() {
+  const list = window.VDX_DB && window.VDX_DB.notifications;
+  if (list) list.forEach(n => n.read = true);
+  const badge = document.getElementById('notif-badge');
+  if (badge) badge.style.display = 'none';
+  toast('Все уведомления отмечены как прочитанные');
+  if (typeof renderNotifPage === 'function') renderNotifPage();
+  renderNotifDrop();
+}
+function renderNotifDrop() {
+  const list = (window.VDX_DB && window.VDX_DB.notifications) || [];
+  const el = document.getElementById('notif-drop');
+  if (!el) return;
+  el.innerHTML = `
+    <div class="nd-head"><b>Уведомления</b><a href="notifications.html">Все</a></div>
+    <div class="nd-list">${list.slice(0, 6).map(n => notifItem(n, true)).join('') || emptyState('Уведомлений нет.')}</div>`;
+}
+
 function renderShell(activeKey, contentHTML) {
   const sideLinks = NAV.map(n => {
     const active = n.key === activeKey;
@@ -87,9 +167,9 @@ function renderShell(activeKey, contentHTML) {
 <div class="layout">
   <aside class="sidebar">
     <div class="brand">
-      <span class="mark">VA</span>
+      <span class="mark">${svg('logoMark')}</span>
       <div>
-        <span class="word">Vadalex</span>
+        <span class="word">DoorFlow</span>
         <span class="sub">Контроль доступа</span>
       </div>
     </div>
@@ -112,7 +192,10 @@ function renderShell(activeKey, contentHTML) {
       <div class="hright">
         <span class="pill ok">${svg('circleCheck')}Все системы в норме</span>
         <span class="pill local">${svg('wifi')}Локальный режим</span>
-        <button class="iconbtn" aria-label="Уведомления">${svg('bell')}<span class="ping"></span></button>
+        <div style="position:relative">
+          <button class="iconbtn" aria-label="Уведомления" onclick="event.stopPropagation();toggleNotifDrop()">${svg('bell')}<span class="ping" id="notif-badge"></span></button>
+          <div class="notif-drop" id="notif-drop" style="display:none"></div>
+        </div>
         <a class="iconbtn" href="help.html" aria-label="Справка">${svg('help')}</a>
         <a class="avatar-btn" href="settings.html">ВР</a>
       </div>
@@ -121,6 +204,15 @@ function renderShell(activeKey, contentHTML) {
     <div class="content">${contentHTML}</div>
   </main>
 </div>`;
+
+  renderNotifDrop();
+  const unread = ((window.VDX_DB && window.VDX_DB.notifications) || []).filter(n => !n.read).length;
+  const badge = document.getElementById('notif-badge');
+  if (badge) badge.style.display = unread ? 'block' : 'none';
+  document.addEventListener('click', (e) => {
+    const drop = document.getElementById('notif-drop');
+    if (drop && drop.style.display === 'block' && !drop.contains(e.target)) drop.style.display = 'none';
+  });
 }
 
 function tagClass(status) {
@@ -177,6 +269,9 @@ function fInput(id, value, placeholder) {
 }
 function fSelect(id, options, selected) {
   return `<select id="${id}">${options.map(o => `<option ${o === selected ? 'selected' : ''}>${o}</option>`).join('')}</select>`;
+}
+function fSelectOnChange(id, options, selected, fnName) {
+  return `<select id="${id}" onchange="${fnName}(this.value)">${options.map(o => `<option ${o === selected ? 'selected' : ''}>${o}</option>`).join('')}</select>`;
 }
 function fTextarea(id, value, placeholder) {
   return `<textarea id="${id}" placeholder="${placeholder || ''}">${value || ''}</textarea>`;

@@ -1,0 +1,221 @@
+<!DOCTYPE html>
+<html lang="ru">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Дверь — DoorFlow</title>
+<link rel="stylesheet" href="assets/fonts.css">
+<link rel="stylesheet" href="assets/styles.css">
+</head>
+<body>
+<script src="assets/db.js"></script>
+<script src="assets/app.js"></script>
+<script>
+const DB = window.VDX_DB;
+const doorId = qs('id');
+const door = DB.doors.find(d => d.id === doorId) || DB.doors[0];
+let activeTab = 'Обзор';
+const TABS = ['Обзор', 'События', 'Домофон', 'Камера', 'Доступ', 'Устройство', 'Настройки'];
+const lockLabel = { Locked: 'Заперта', Unlocked: 'Открыта', 'Held Open': 'Удерживается открытой', Alarm: 'Тревога' };
+const intercomLabel = { 'Звонит':'Звонит', 'Ожидание':'В ожидании', 'Нет':'Нет домофона', 'Не беспокоить':'Не беспокоить', 'Офлайн':'Офлайн', 'В разговоре':'В разговоре' };
+
+function lockClass(l) { return l === 'Alarm' ? 'bad' : (l === 'Unlocked' || l === 'Held Open' ? 'warn' : 'ok'); }
+
+function renderHead() {
+  document.getElementById('head-slot').innerHTML = `
+  <a class="backlink" href="doors.html">${svg('arrowRight')} Двери</a>
+  <div class="dhead">
+    <div class="dhead-id">
+      <div>
+        <h1>${door.name}</h1>
+        <p>${door.location}</p>
+        <div class="dhead-badges">
+          <span class="tag ${tagClass(door.status)}">${door.status}</span>
+          <span class="tag ${lockClass(door.lockState)}">${lockLabel[door.lockState] || door.lockState}</span>
+        </div>
+      </div>
+    </div>
+    <div class="dhead-actions">
+      <button class="btn" onclick="doorAct('open')">${svg('doorOpen2')}Открыть дверь</button>
+      <button class="btn outline" onclick="doorAct('unlock')">${svg('unlock')}Отпереть</button>
+      <button class="btn outline" onclick="doorAct('lock')">${svg('lock')}Запереть</button>
+      <button class="btn outline" onclick="doorAct('disable')">${svg('shieldAlert')}Отключить</button>
+      <button class="btn outline" onclick="openEditDoor()">${svg('penLine')}Изменить дверь</button>
+      <button class="btn danger" onclick="deleteDoorAndBack()">${svg('trash')}Удалить дверь</button>
+    </div>
+  </div>`;
+}
+
+function doorAct(a) {
+  if (a === 'open') { door.lockState = 'Unlocked'; toast(`«${door.name}» открыта удалённо`); }
+  if (a === 'unlock') { door.lockState = 'Unlocked'; toast(`«${door.name}» отперта`); }
+  if (a === 'lock') { door.lockState = 'Locked'; toast(`«${door.name}» заперта`); }
+  if (a === 'disable') { door.status = 'Офлайн'; door.controllerOnline = false; toast(`«${door.name}» отключена`); }
+  renderHead(); renderStats(); renderTab();
+}
+
+function renderStats() {
+  document.getElementById('stats-slot').innerHTML = statRow([
+    { icon: 'lock', label: 'Состояние двери', value: lockLabel[door.lockState] || door.lockState },
+    { icon: 'wifi', label: 'Статус считывателя', value: door.status },
+    { icon: 'clock', label: 'Последняя активность', value: door.lastActivityTime },
+    { icon: 'activity', label: 'Событий сегодня', value: door.accessEventsToday }
+  ]);
+}
+
+function panelOverview() {
+  return `<div class="grid2">
+    <div class="panel">
+      <div class="panel-head"><div><h2>Дверь</h2></div></div>
+      <div class="detail-list" style="padding:16px 18px">
+        <div class="detail-row"><span>Название</span><span>${door.name}</span></div>
+        <div class="detail-row"><span>Расположение</span><span>${door.location}</span></div>
+        <div class="detail-row"><span>Состояние</span><span><span class="tag ${lockClass(door.lockState)}">${lockLabel[door.lockState] || door.lockState}</span></span></div>
+        <div class="detail-row"><span>Контроллер</span><span>${door.reader}</span></div>
+        <div class="detail-row"><span>Событий доступа сегодня</span><span>${door.accessEventsToday}</span></div>
+        <div class="detail-row"><span>Домофон</span><span>${intercomLabel[door.intercom] || door.intercom}</span></div>
+        <div class="detail-row"><span>Камера</span><span>${door.camera === 'online' ? 'Подключена' : (door.camera === 'offline' ? 'Офлайн' : 'Не привязана')}</span></div>
+      </div>
+    </div>
+    <div class="panel">
+      <div class="panel-head"><div><h2>Камера</h2><p>Видео открывается по запросу — фонового потока нет.</p></div></div>
+      <div style="padding:18px"><button class="btn outline" onclick="toast('Поток камеры недоступен в демо-режиме')">${svg('camera')}Смотреть камеру</button></div>
+    </div>
+  </div>
+  <div class="panel" style="margin-top:16px">
+    <div class="panel-head"><div><h2>Недавняя активность</h2></div></div>
+    <div class="rows">
+      ${DB.events.slice(0, 5).map(e => `<div class="row"><span class="person ${tagClass(e.result)}">${e.initials}</span>
+        <div class="info"><div class="name">${e.person}<span>${e.unit || ''}</span></div>
+        <div class="meta"><i>${e.door}</i><i>${e.credential}</i></div></div>
+        <div class="result"><span class="tag ${tagClass(e.result)}">${e.result}</span><span class="time">${e.time}</span></div></div>`).join('')}
+    </div>
+  </div>`;
+}
+
+function panelEvents() {
+  return `<div class="panel"><div class="panel-head"><div><h2>События по двери «${door.name}»</h2></div></div>
+    <div class="rows">${DB.events.map(e => `<div class="row"><span class="person ${tagClass(e.result)}">${e.initials}</span>
+      <div class="info"><div class="name">${e.person}</div><div class="meta"><i>${e.credential}</i></div></div>
+      <div class="result"><span class="tag ${tagClass(e.result)}">${e.result}</span><span class="time">${e.time}</span></div></div>`).join('')}
+    </div></div>`;
+}
+function panelIntercom() {
+  const st = DB.intercomStations.find(s => s.linkedDoor === door.name);
+  return `<div class="panel"><div class="panel-head"><div><h2>Домофон</h2></div></div>
+    <div class="detail-list" style="padding:16px 18px">
+      ${st ? `
+      <div class="detail-row"><span>Станция</span><span>${st.name}</span></div>
+      <div class="detail-row"><span>SIP</span><span>${st.sip}</span></div>
+      <div class="detail-row"><span>Статус</span><span><span class="tag ${tagClass(st.status)}">${st.status}</span></span></div>
+      <div class="detail-row"><span>Состояние</span><span>${st.state}</span></div>
+      <div class="detail-row"><span>Группа вызова</span><span>${st.ringGroup}</span></div>` : `<div class="detail-row"><span colspan="2">К этой двери домофон не привязан.</span></div>`}
+    </div></div>`;
+}
+function panelCamera() {
+  return `<div class="panel"><div class="panel-head"><div><h2>Камера</h2></div></div>
+    <div style="padding:18px">${door.camera === 'online' ? emptyState('Поток открывается по запросу.') : emptyState('К этой двери камера не подключена.')}</div></div>`;
+}
+function panelAccess() {
+  return `<div class="panel"><div class="panel-head"><div><h2>Группы доступа с правами на эту дверь</h2></div></div>
+    <div class="rows">${DB.accessGroups.map(g => `<div class="row"><span class="person">${svg('access')}</span>
+      <div class="info"><div class="name">${g.name}</div><div class="meta"><i>${g.peopleCount} человек</i><i>${g.schedule}</i></div></div></div>`).join('')}
+    </div></div>`;
+}
+function panelDevice() {
+  const dev = DB.devices.find(d => door.reader.includes(d.name.split(' ')[0]));
+  return `<div class="panel"><div class="panel-head"><div><h2>Привязанное устройство</h2></div></div>
+    <div class="detail-list" style="padding:16px 18px">
+      <div class="detail-row"><span>Контроллер</span><span>${door.reader}</span></div>
+      <div class="detail-row"><span>IP-адрес</span><span class="mono">${door.controllerIp}</span></div>
+      <div class="detail-row"><span>Онлайн</span><span>${door.controllerOnline ? 'Да' : 'Нет'}</span></div>
+      ${dev ? `<div class="detail-row"><span>Открыть в «Устройства»</span><span><a href="device.html?id=${dev.id}">${dev.name}</a></span></div>` : ''}
+    </div></div>`;
+}
+function panelSettings() {
+  return `<div class="panel"><div class="panel-head"><div><h2>Настройки двери</h2></div></div>
+    <div class="detail-list" style="padding:16px 18px">
+      <div class="detail-row"><span>Удерживать открытой, тревога через</span><span>30 сек</span></div>
+      <div class="detail-row"><span>Время автозапирания</span><span>5 сек</span></div>
+      <div class="detail-row"><span>Разрешить кнопку выхода</span><span>Да</span></div>
+    </div></div>`;
+}
+
+function renderTab() {
+  const slot = document.getElementById('tab-slot');
+  if (activeTab === 'Обзор') slot.innerHTML = panelOverview();
+  else if (activeTab === 'События') slot.innerHTML = panelEvents();
+  else if (activeTab === 'Домофон') slot.innerHTML = panelIntercom();
+  else if (activeTab === 'Камера') slot.innerHTML = panelCamera();
+  else if (activeTab === 'Доступ') slot.innerHTML = panelAccess();
+  else if (activeTab === 'Устройство') slot.innerHTML = panelDevice();
+  else slot.innerHTML = panelSettings();
+}
+function setTab(t) { activeTab = t; document.getElementById('tabs-slot').innerHTML = tabsBar(TABS, activeTab, 'setTab'); renderTab(); }
+
+function controllerOptions() {
+  return DB.devices.filter(d => d.type === 'Терминал распознавания лиц' || d.type === 'Контроллер двери')
+    .map(d => `<option value="${d.id}" ${door.reader === d.name ? 'selected' : ''}>${d.name} · ${d.ip}</option>`).join('');
+}
+function cameraOptions() {
+  const opts = DB.devices.filter(d => d.type === 'IP-камера').map(d => `<option value="${d.id}">${d.name}</option>`).join('');
+  return `<option value="">Нет камеры</option>${opts}`;
+}
+function intercomOptions() {
+  const opts = DB.intercomStations.map(s => `<option value="${s.name}" ${door.intercom !== 'Нет' && s.linkedDoor === door.name ? 'selected' : ''}>${s.name}</option>`).join('');
+  return `<option value="">Нет домофона</option>${opts}`;
+}
+
+function openEditDoor() {
+  openModal('Изменить дверь', `
+    <p class="desc">Обновите название, расположение, контроллер и текущее состояние двери.</p>
+    ${fField('Название двери', fInput('ed-name', door.name), { full: true })}
+    ${fField('Расположение', fInput('ed-loc', door.location), { full: true })}
+    ${fField('Контроллер', `<select id="ed-ctrl">${controllerOptions()}</select>`, { full: true })}
+    ${fField('Камера (необязательно)', `<select id="ed-cam">${cameraOptions()}</select>`, { full: true })}
+    <p class="hint">Оставьте пустым — на странице двери не будет видеопотока.</p>
+    ${fField('Станция домофона (необязательно)', `<select id="ed-int">${intercomOptions()}</select>`, { full: true })}
+    ${fField('Текущее состояние', fSelect('ed-lock', ['Locked','Unlocked','Held Open','Alarm'], door.lockState), { full: true })}
+    <label class="banner info" style="display:flex;gap:10px;align-items:flex-start;cursor:pointer;margin-top:14px">
+      <input type="checkbox" id="ed-online" style="margin-top:2px" ${door.controllerOnline ? 'checked' : ''}>
+      <span><b>Контроллер онлайн</b>Отметить считыватель двери как доступный в локальной сети.</span>
+    </label>
+  `, { wide: true });
+  document.getElementById('modal-root').querySelector('.modal').insertAdjacentHTML('beforeend', modalFooter(`
+    <button class="btn outline" onclick="closeModal()">Отмена</button>
+    <button class="btn" onclick="saveEditDoor()">Сохранить изменения</button>
+  `));
+}
+function saveEditDoor() {
+  door.name = document.getElementById('ed-name').value.trim() || door.name;
+  door.location = document.getElementById('ed-loc').value;
+  const ctrlId = document.getElementById('ed-ctrl').value;
+  const ctrlDev = DB.devices.find(d => d.id === ctrlId);
+  if (ctrlDev) { door.reader = ctrlDev.name; door.controllerIp = ctrlDev.ip; }
+  const camId = document.getElementById('ed-cam').value;
+  door.camera = camId ? 'online' : 'none';
+  const intName = document.getElementById('ed-int').value;
+  door.intercom = intName ? 'Ожидание' : 'Нет';
+  door.lockState = document.getElementById('ed-lock').value;
+  door.controllerOnline = document.getElementById('ed-online').checked;
+  door.status = door.controllerOnline ? 'Онлайн' : 'Офлайн';
+  closeModal();
+  renderHead(); renderStats(); renderTab();
+  toast('Изменения сохранены');
+}
+function deleteDoorAndBack() {
+  const idx = DB.doors.findIndex(x => x.id === door.id);
+  if (idx > -1) DB.doors.splice(idx, 1);
+  toast(`«${door.name}» удалена`);
+  window.location.href = 'doors.html';
+}
+
+const content = `<div id="head-slot"></div><div id="stats-slot" style="margin:16px 0"></div><div id="tabs-slot"></div><div id="tab-slot"></div>`;
+renderShell('doors', content);
+renderHead();
+renderStats();
+document.getElementById('tabs-slot').innerHTML = tabsBar(TABS, activeTab, 'setTab');
+renderTab();
+</script>
+</body>
+</html>

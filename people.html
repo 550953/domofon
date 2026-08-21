@@ -3,7 +3,7 @@
 <head>
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width, initial-scale=1">
-<title>Люди — Vadalex Access</title>
+<title>Люди — DoorFlow</title>
 <link rel="stylesheet" href="assets/fonts.css">
 <link rel="stylesheet" href="assets/styles.css">
 </head>
@@ -12,20 +12,24 @@
 <script src="assets/app.js"></script>
 <script>
 const DB = window.VDX_DB;
-let peopleFilter = 'Все';
 let peopleQuery = '';
+const F = { status: 'Все', type: 'Все', group: 'Все', face: 'Все', cred: 'Все', exp: 'Любой' };
+const F_LABELS = {
+  status: 'Статус', type: 'Тип', group: 'Группа доступа', face: 'Лицо', cred: 'Учётные данные', exp: 'Срок действия'
+};
 
 function personRow(p) {
   const cls = tagClass(p.status);
+  const href = `person.html?id=${encodeURIComponent(p.id)}`;
   return `<tr>
     <td>
-      <div class="dtname">
+      <a class="dtname" href="${href}">
         <span class="person">${p.initials}</span>
         <div>
           <div>${p.name}</div>
           <div class="dtsub">${p.role || p.type}</div>
         </div>
-      </div>
+      </a>
     </td>
     <td>${p.type}</td>
     <td>${p.unit}</td>
@@ -33,102 +37,122 @@ function personRow(p) {
     <td><span class="tag ${cls}">${p.status}</span></td>
     <td>
       <div class="rowactions">
-        <button onclick="openPerson('${p.initials}','${p.name.replace(/'/g,"")}')">${svg('penLine')}</button>
-        <button class="danger" onclick="deletePerson('${p.name.replace(/'/g,"")}')">${svg('trash')}</button>
+        <a href="${href}">${svg('penLine')}</a>
+        <button class="danger" onclick="deletePerson('${p.id}')">${svg('trash')}</button>
       </div>
     </td>
   </tr>`;
 }
 
+function personCreds(p) { return (p.credentials || []).map(c => c.type); }
+
+function matchesFilters(p) {
+  if (F.status !== 'Все' && p.status !== F.status) return false;
+  if (F.type !== 'Все' && p.type !== F.type) return false;
+  if (F.group !== 'Все' && p.accessGroup !== F.group) return false;
+  if (F.face === 'Зарегистрировано' && !p.faceEnrolled) return false;
+  if (F.face === 'Не зарегистрировано' && p.faceEnrolled) return false;
+  if (F.cred !== 'Все') {
+    const creds = personCreds(p);
+    if (F.cred === 'Нет' ? creds.length > 0 : !creds.includes(F.cred)) return false;
+  }
+  if (F.exp === 'Истекает' && !(p.expiration && p.status !== 'Истёк')) return false;
+  if (F.exp === 'Истёк' && p.status !== 'Истёк') return false;
+  return true;
+}
+
 function renderPeople() {
-  const rows = DB.people.filter(p => (peopleFilter === 'Все' || p.type === peopleFilter) &&
+  const rows = DB.people.filter(p => matchesFilters(p) &&
     (peopleQuery === '' || p.name.toLowerCase().includes(peopleQuery.toLowerCase()) || p.unit.toLowerCase().includes(peopleQuery.toLowerCase())));
   document.getElementById('people-tbody').innerHTML = rows.length
     ? rows.map(personRow).join('')
     : `<tr><td colspan="6">${emptyState('Никого не найдено по этим фильтрам.')}</td></tr>`;
-  document.getElementById('people-count').textContent = `${rows.length} из ${DB.people.length} человек`;
+  document.getElementById('people-count').textContent = `${rows.length} человек`;
+  document.getElementById('people-sub').textContent = `Показаны первые ${Math.min(rows.length, 40)} из ${rows.length}`;
+  renderChips();
+  renderBadge();
 }
 
-function setPeopleFilter(v) { peopleFilter = v; document.querySelectorAll('#ftabs-type .ftab').forEach(b => b.classList.toggle('active', b.textContent === v)); renderPeople(); }
+function activeFilterCount() {
+  let n = 0;
+  if (F.status !== 'Все') n++;
+  if (F.type !== 'Все') n++;
+  if (F.group !== 'Все') n++;
+  if (F.face !== 'Все') n++;
+  if (F.cred !== 'Все') n++;
+  if (F.exp !== 'Любой') n++;
+  return n;
+}
+function renderBadge() {
+  const n = activeFilterCount();
+  document.getElementById('filters-badge').style.display = n ? 'inline-flex' : 'none';
+  document.getElementById('filters-badge').textContent = n;
+}
+function renderChips() {
+  const keys = Object.keys(F).filter(k => (k === 'exp' ? F[k] !== 'Любой' : F[k] !== 'Все'));
+  const wrap = document.getElementById('chip-row');
+  if (!keys.length) { wrap.style.display = 'none'; wrap.innerHTML = ''; return; }
+  wrap.style.display = 'flex';
+  wrap.innerHTML = keys.map(k => `<span class="fchip">${F_LABELS[k]}: ${F[k]}<button onclick="clearFilter('${k}')">${svg('close')}</button></span>`).join('')
+    + `<span class="fchip" style="cursor:pointer" onclick="resetFilters()">Сбросить всё</span>`;
+}
+function clearFilter(k) { F[k] = (k === 'exp') ? 'Любой' : 'Все'; syncFilterInputs(); renderPeople(); }
+function resetFilters() { Object.assign(F, { status: 'Все', type: 'Все', group: 'Все', face: 'Все', cred: 'Все', exp: 'Любой' }); syncFilterInputs(); renderPeople(); }
+function syncFilterInputs() {
+  ['status','type','group','face','cred','exp'].forEach(k => { const el = document.getElementById('f-' + k); if (el) el.value = F[k]; });
+}
+
 function setPeopleQuery(v) { peopleQuery = v; renderPeople(); }
 
-function openAddPerson() {
-  openModal('Добавить человека', `
-    <p class="desc">Зарегистрируйте нового жителя, сотрудника, гостя или подрядчика.</p>
-    <div class="formgrid">
-      ${fField('Имя', fInput('np-name','','Иван Иванов'))}
-      ${fField('Тип', fSelect('np-type', ['Житель','Персонал','Гость','Подрядчик'], 'Житель'))}
-      ${fField('Квартира / отдел', fInput('np-unit','','Кв. 1301'))}
-      ${fField('Группа доступа', fSelect('np-group', DB.accessGroups.map(g=>g.name), DB.accessGroups[0].name))}
-      ${fField('Email', fInput('np-email','','ivan@example.com'), {full:true})}
-    </div>
-  `, {});
-  document.getElementById('modal-root').querySelector('.modal').insertAdjacentHTML('beforeend', modalFooter(`
-    <button class="btn outline" onclick="closeModal()">Отмена</button>
-    <button class="btn" onclick="saveNewPerson()">${svg('userPlus')}Добавить</button>
-  `));
+function toggleFilterDrop() {
+  const el = document.getElementById('filter-drop');
+  el.style.display = (el.style.display === 'none' || !el.style.display) ? 'flex' : 'none';
 }
+function setFilter(k, v) { F[k] = v; renderPeople(); }
 
-function saveNewPerson() {
-  const name = document.getElementById('np-name').value.trim() || 'Новый человек';
-  const type = document.getElementById('np-type').value;
-  const unit = document.getElementById('np-unit').value || '—';
-  const group = document.getElementById('np-group').value;
-  const initials = name.split(' ').map(w=>w[0]).join('').toUpperCase().slice(0,2) || 'НН';
-  DB.people.unshift({ initials, name, role: null, type, unit, accessGroup: group, status: 'Активен' });
-  closeModal();
-  renderPeople();
-  toast(`${name} добавлен(а)`);
-}
-
-function openPerson(initials, name) {
-  const p = DB.people.find(x => x.name === name);
-  if (!p) return;
-  openModal(p.name, `
-    <div class="detail-list">
-      <div class="detail-row"><span>Тип</span><span>${p.type}</span></div>
-      <div class="detail-row"><span>Квартира / отдел</span><span>${p.unit}</span></div>
-      <div class="detail-row"><span>Группа доступа</span><span>${p.accessGroup}</span></div>
-      <div class="detail-row"><span>Статус</span><span><span class="tag ${tagClass(p.status)}">${p.status}</span></span></div>
-    </div>
-    <div class="formgrid" style="margin-top:16px">
-      ${fField('Статус', fSelect('ep-status', ['Активен','Ожидает синхр.','Заблокирован','Истёк'], p.status))}
-      ${fField('Группа доступа', fSelect('ep-group', DB.accessGroups.map(g=>g.name), p.accessGroup))}
-    </div>
-  `, {});
-  document.getElementById('modal-root').querySelector('.modal').insertAdjacentHTML('beforeend', modalFooter(`
-    <button class="btn outline" onclick="closeModal()">Закрыть</button>
-    <button class="btn" onclick="savePersonEdit('${name.replace(/'/g,"")}')">Сохранить</button>
-  `));
-}
-
-function savePersonEdit(name) {
-  const p = DB.people.find(x => x.name === name);
-  if (!p) return;
-  p.status = document.getElementById('ep-status').value;
-  p.accessGroup = document.getElementById('ep-group').value;
-  closeModal();
-  renderPeople();
-  toast('Изменения сохранены');
-}
-
-function deletePerson(name) {
-  const idx = DB.people.findIndex(x => x.name === name);
+function deletePerson(id) {
+  const p = DB.people.find(x => x.id === id);
+  const idx = DB.people.findIndex(x => x.id === id);
   if (idx > -1) DB.people.splice(idx, 1);
   renderPeople();
-  toast(`${name} удалён(а)`);
+  toast(`${p ? p.name : 'Человек'} удалён(а)`);
 }
 
-const types = ['Все','Житель','Персонал','Гость','Подрядчик'];
+function filterDropHTML() {
+  const statuses = ['Все','Активен','Ожидает синхр.','Заблокирован','Истёк'];
+  const types = DB.wizardConfig.personTypesFilter;
+  const groups = ['Все'].concat(DB.accessGroups.map(g => g.name));
+  const faces = ['Все','Зарегистрировано','Не зарегистрировано'];
+  const creds = ['Все','Карта','Мобильное','PIN-код','Нет'];
+  const exps = ['Любой','Истекает','Истёк'];
+  const sel = (id, opts, val) => `<select id="${id}" onchange="setFilter('${id.replace('f-','')}', this.value)">${opts.map(o => `<option ${o===val?'selected':''}>${o}</option>`).join('')}</select>`;
+  return `
+    <div class="fd-head"><b>Фильтр людей</b><a onclick="resetFilters()">Сбросить</a></div>
+    <label>Статус${sel('f-status', statuses, F.status)}</label>
+    <label>Тип человека${sel('f-type', types, F.type)}</label>
+    <label>Группа доступа${sel('f-group', groups, F.group)}</label>
+    <label>Лицо${sel('f-face', faces, F.face)}</label>
+    <label>Учётные данные${sel('f-cred', creds, F.cred)}</label>
+    <label>Срок действия${sel('f-exp', exps, F.exp)}</label>
+  `;
+}
+
 const content = `
-${pageHead('Vadalex Tower · демо-аккаунт', 'Люди', 'Управление жителями, персоналом, посетителями и учётными данными.',
-  `<button class="btn" onclick="openAddPerson()">${svg('userPlus')}Добавить человека</button>`)}
+${pageHead('DoorFlow Tower · демо-аккаунт', 'Люди', 'Управление жителями, персоналом, посетителями и учётными данными.',
+  `<a class="btn" href="person-new.html">${svg('userPlus')}Добавить человека</a>`)}
 
 ${toolbar(
-  `<div id="ftabs-type">${filterTabs('type', types, 'Все', 'setPeopleFilter')}</div>
-   <div class="tsearch">${svg('search')}<input placeholder="Поиск по имени или квартире..." oninput="setPeopleQuery(this.value)"></div>`,
-  `<span class="hint" id="people-count"></span>`
+  `<div class="tsearch">${svg('search')}<input placeholder="Поиск людей..." oninput="setPeopleQuery(this.value)"></div>`,
+  `<div style="position:relative">
+     <button class="btn outline" onclick="event.stopPropagation();toggleFilterDrop()">${svg('access')}Фильтры <span class="badge-count" id="filters-badge" style="display:none;margin-left:4px"></span></button>
+     <div class="filter-drop" id="filter-drop" style="display:none">${filterDropHTML()}</div>
+   </div>`
 )}
+
+<div class="chiprow" id="chip-row" style="display:none"></div>
+
+<div class="hint" id="people-count" style="margin-bottom:4px;font-weight:700;color:var(--ink);font-size:13px"></div>
+<div class="hint" id="people-sub" style="margin-bottom:12px"></div>
 
 <div class="tblwrap">
   <table class="dt">
@@ -140,6 +164,10 @@ ${toolbar(
 
 renderShell('people', content);
 renderPeople();
+document.addEventListener('click', (e) => {
+  const drop = document.getElementById('filter-drop');
+  if (drop && drop.style.display === 'flex' && !drop.contains(e.target) && !e.target.closest('.btn.outline')) drop.style.display = 'none';
+});
 </script>
 </body>
 </html>

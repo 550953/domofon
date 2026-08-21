@@ -3,7 +3,7 @@
 <head>
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width, initial-scale=1">
-<title>Домофон — Vadalex Access</title>
+<title>Домофон — DoorFlow</title>
 <link rel="stylesheet" href="assets/fonts.css">
 <link rel="stylesheet" href="assets/styles.css">
 </head>
@@ -14,6 +14,15 @@
 const DB = window.VDX_DB;
 let icTab = 'Станции';
 let icFilter = 'Все';
+
+const STATION_TYPES = ['Дверная станция','Панель лобби','Станция ворот','Внутренний монитор'];
+const RING_GROUPS = ['Ресепшн','Охрана','Эксплуатация','Ночная смена'];
+const DOOR_NAMES = DB.doors.map(d => d.name);
+
+let callTimer = null;
+let callSeconds = 0;
+let callMuted = false;
+let currentCallStation = null;
 
 function stationCard(s) {
   const statCls = tagClass(s.status);
@@ -32,7 +41,7 @@ function stationCard(s) {
       <div>Группа звонка: <b>${s.ringGroup}</b> · Пропущено сегодня: <b>${s.missedToday}</b></div>
     </div>
     <div class="entity-actions">
-      <button onclick="stationAction('${s.name}','call')">${svg('phone')}Позвонить</button>
+      <button onclick="openCallModal('${s.name}')">${svg('phone')}Позвонить</button>
       <button onclick="stationAction('${s.name}','open')">${svg('doorOpen2')}Открыть дверь</button>
       <button onclick="stationAction('${s.name}','dnd')">${svg('phoneOff')}Не беспокоить</button>
       <button onclick="openStationEdit('${s.name}')">${svg('penLine')}Изменить</button>
@@ -65,29 +74,121 @@ function setIcFilter(v) { icFilter = v; document.querySelectorAll('#ic-filter .f
 function stationAction(name, action) {
   const s = DB.intercomStations.find(x => x.name === name);
   if (!s) return;
-  if (action === 'call') { s.state = 'В разговоре'; toast(`Звонок на «${name}»`); }
   if (action === 'open') toast(`Дверь у «${name}» открыта`);
   if (action === 'dnd') { s.state = 'Не беспокоить'; toast(`«${name}»: режим «Не беспокоить»`); }
   renderIntercom();
 }
+
+/* ============ Call modal (live video simulation) ============ */
+function fmtTime(sec) {
+  const m = String(Math.floor(sec / 60)).padStart(2, '0');
+  const s = String(sec % 60).padStart(2, '0');
+  return `${m}:${s}`;
+}
+function callVideoHTML(label) {
+  return `<div style="background:#0c1420;border-radius:10px;overflow:hidden;position:relative;aspect-ratio:16/9;margin:14px 0">
+    <span style="position:absolute;top:10px;left:12px;color:#ef5350;font:700 11px var(--font-mono);display:flex;align-items:center;gap:5px">
+      <span style="width:7px;height:7px;border-radius:50%;background:#ef5350;display:inline-block"></span>LIVE
+    </span>
+    <span style="position:absolute;top:10px;right:12px;color:#c7cedb;font:600 11px var(--font-body)">${label}</span>
+    <span id="call-timer" style="position:absolute;bottom:10px;left:12px;color:#c7cedb;font:600 11px var(--font-mono)">${fmtTime(callSeconds)}</span>
+    <span style="position:absolute;bottom:10px;right:12px;color:#c7cedb;font:600 11px var(--font-mono)">1080p · 25 fps</span>
+  </div>`;
+}
+function openCallModal(name) {
+  const s = DB.intercomStations.find(x => x.name === name);
+  if (!s) return;
+  currentCallStation = name;
+  callSeconds = 0;
+  callMuted = false;
+  s.state = 'Звонит';
+  renderIntercom();
+  openModal(`Вызов станции...`, `
+    <div class="hint" style="margin-bottom:0">${s.ringGroup} · ${s.name} · SIP ${s.sip} · ${s.linkedDoor}</div>
+    ${callVideoHTML(s.name + ' — камера домофона')}
+    <div id="call-controls" style="display:flex;gap:8px">
+      <button class="btn outline" onclick="toggleMute()">${svg('phoneOff')}Без звука</button>
+      <button class="btn danger" onclick="hangUp()">${svg('phoneOff')}Завершить</button>
+      <button class="btn outline" onclick="stationAction('${name}','open')">${svg('doorOpen2')}Открыть дверь</button>
+      <button class="btn outline" onclick="toast('Открыта страница двери')">${svg('doors')}Страница двери</button>
+    </div>
+  `, {wide:false});
+  clearInterval(callTimer);
+  setTimeout(() => {
+    if (currentCallStation !== name) return;
+    s.state = 'В разговоре';
+    renderIntercom();
+    updateCallModalHead(`В разговоре · 00:00`);
+    callTimer = setInterval(() => {
+      callSeconds++;
+      const t = document.getElementById('call-timer');
+      if (t) t.textContent = fmtTime(callSeconds);
+      updateCallModalHead(`В разговоре · ${fmtTime(callSeconds)}`);
+    }, 1000);
+  }, 1500);
+}
+function updateCallModalHead(title) {
+  const h = document.querySelector('#modal-root .modal-head h3');
+  if (h) h.textContent = title;
+}
+function toggleMute() {
+  callMuted = !callMuted;
+  const btn = document.querySelector('#call-controls .btn.outline');
+  if (btn) btn.innerHTML = `${svg(callMuted ? 'phoneOff' : 'phone')}${callMuted ? 'Включить звук' : 'Без звука'}`;
+  toast(callMuted ? 'Микрофон выключен' : 'Микрофон включён');
+}
+function hangUp() {
+  clearInterval(callTimer);
+  const s = DB.intercomStations.find(x => x.name === currentCallStation);
+  if (s) s.state = 'Ожидание';
+  currentCallStation = null;
+  closeModal();
+  renderIntercom();
+  toast('Звонок завершён');
+}
+
 function openAddStation() {
-  openModal('Добавить станцию', `
+  openModal('Добавить станцию домофона', `
+    <p class="hint" style="margin:-4px 0 14px">Настройте SIP-идентификатор, группу звонка, видео и привязанную дверь.</p>
     <div class="formgrid">
       ${fField('Название', fInput('ns-name','','Станция паркинга'))}
-      ${fField('Тип', fSelect('ns-type', ['Дверная станция','Панель лобби','Станция ворот','Внутренний монитор'], 'Дверная станция'))}
-      ${fField('SIP', fInput('ns-sip','','2007'))}
-      ${fField('Привязанная дверь', fSelect('ns-door', DB.doors.map(d=>d.name), DB.doors[0].name))}
+      <div></div>
+      ${fField('Тип', fSelect('ns-type', STATION_TYPES, 'Дверная станция'))}
+      ${fField('Группа звонка', fSelect('ns-ring', RING_GROUPS, 'Ресепшн'))}
+      ${fField('Расположение', fInput('ns-location','','Северный холл'))}
+      ${fField('SIP ID', fInput('ns-sip','','2007'))}
+      ${fField('IP-адрес', fInput('ns-ip','','10.20.40.67'))}
+      ${fField('Привязанная дверь', fSelect('ns-door', ['Не привязано'].concat(DOOR_NAMES), 'Не привязано'))}
     </div>
-  `);
+    <div class="formgrid" style="margin-top:6px">
+      ${fField('Видеокамера', `<label class="switch"><input type="checkbox" id="ns-video" checked><span class="slider"></span></label>`)}
+      ${fField('Онлайн', `<label class="switch"><input type="checkbox" id="ns-online" checked><span class="slider"></span></label>`)}
+    </div>
+  `, {wide:true});
   document.getElementById('modal-root').querySelector('.modal').insertAdjacentHTML('beforeend', modalFooter(`
     <button class="btn outline" onclick="closeModal()">Отмена</button>
-    <button class="btn" onclick="saveNewStation()">Добавить</button>
+    <button class="btn" onclick="saveNewStation()">Добавить станцию</button>
   `));
 }
 function saveNewStation() {
-  const name = document.getElementById('ns-name').value.trim() || 'Новая станция';
-  DB.intercomStations.unshift({ name, type: document.getElementById('ns-type').value, sip: document.getElementById('ns-sip').value || '0000',
-    status: 'Онлайн', video: true, state: 'Ожидание', linkedDoor: document.getElementById('ns-door').value, ringGroup: 'Ресепшн', missedToday: 0 });
+  const name = document.getElementById('ns-name').value.trim();
+  const sip = document.getElementById('ns-sip').value.trim();
+  if (!name || !sip) { toast('Название и SIP ID обязательны'); return; }
+  const online = document.getElementById('ns-online').checked;
+  const door = document.getElementById('ns-door').value;
+  DB.intercomStations.unshift({
+    name,
+    type: document.getElementById('ns-type').value,
+    location: document.getElementById('ns-location').value || '—',
+    ip: document.getElementById('ns-ip').value || '—',
+    sip,
+    status: online ? 'Онлайн' : 'Офлайн',
+    video: document.getElementById('ns-video').checked,
+    state: online ? 'Ожидание' : 'Офлайн',
+    linkedDoor: door === 'Не привязано' ? '—' : door,
+    ringGroup: document.getElementById('ns-ring').value,
+    missedToday: 0
+  });
   closeModal(); renderIntercom(); toast(`«${name}» добавлена`);
 }
 function openStationEdit(name) {
@@ -97,7 +198,8 @@ function openStationEdit(name) {
     <div class="formgrid">
       ${fField('Название', fInput('es-name', s.name))}
       ${fField('Статус', fSelect('es-status', ['Онлайн','Офлайн'], s.status))}
-      ${fField('Группа звонка', fInput('es-ring', s.ringGroup))}
+      ${fField('Группа звонка', fSelect('es-ring', RING_GROUPS, s.ringGroup))}
+      ${fField('Привязанная дверь', fSelect('es-door', DOOR_NAMES, s.linkedDoor))}
     </div>
   `);
   document.getElementById('modal-root').querySelector('.modal').insertAdjacentHTML('beforeend', modalFooter(`
@@ -111,6 +213,7 @@ function saveStationEdit(oldName) {
   s.name = document.getElementById('es-name').value.trim() || s.name;
   s.status = document.getElementById('es-status').value;
   s.ringGroup = document.getElementById('es-ring').value;
+  s.linkedDoor = document.getElementById('es-door').value;
   closeModal(); renderIntercom(); toast('Изменения сохранены');
 }
 function deleteStation(name) {
@@ -123,7 +226,7 @@ const s = DB.intercomSummary;
 const tabTabs = ['Станции','Журнал звонков'];
 const filterOpts = ['Все','Онлайн','Офлайн','Звонит','В разговоре','Не беспокоить'];
 const content = `
-${pageHead('Vadalex Tower · демо-аккаунт', 'Домофон', 'Видеопанели, группы вызова и удалённое открытие двери из одной консоли.',
+${pageHead('DoorFlow Tower · демо-аккаунт', 'Домофон', 'Видеопанели, группы вызова и удалённое открытие двери из одной консоли.',
   `<button class="btn" id="ic-add-btn" onclick="openAddStation()">${svg('plus')}Добавить станцию</button>`)}
 
 ${statRow([

@@ -3,25 +3,85 @@
 <head>
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width, initial-scale=1">
-<title>Камеры — Vadalex Access</title>
+<title>Камеры — DoorFlow</title>
 <link rel="stylesheet" href="assets/fonts.css">
 <link rel="stylesheet" href="assets/styles.css">
 <style>
-.wallgrid{display:grid;gap:8px;background:var(--sidebar);border-radius:var(--radius);padding:10px}
+.camlayout{display:flex;justify-content:space-between;align-items:center;gap:14px;flex-wrap:wrap;padding:12px 18px;border-bottom:1px dashed var(--line)}
+.camlayout .ftabs{display:inline-flex;gap:4px;background:var(--panel-2);border:1px solid var(--line);border-radius:9px;padding:3px;flex-wrap:wrap}
+.camlayout .ftabs .ftab{padding:6px 11px;font:600 11px var(--font-body)}
+.camlayout .ftabs .ftab svg{width:12px;height:12px;margin-right:3px;vertical-align:-2px}
+
+.wallwrap{padding:16px 18px}
+.wallgrid{display:grid;gap:8px}
 .wallgrid.g1{grid-template-columns:1fr}
-.wallgrid.g4{grid-template-columns:1fr 1fr}
+.wallgrid.g4{grid-template-columns:repeat(2,1fr)}
 .wallgrid.g9{grid-template-columns:repeat(3,1fr)}
-.tile{position:relative;background:#111;border-radius:7px;aspect-ratio:16/10;overflow:hidden;display:flex;align-items:flex-end;color:#fff}
-.tile .lbl{position:relative;z-index:1;padding:8px 10px;font:600 10.5px var(--font-body);width:100%;display:flex;justify-content:space-between;align-items:center;background:linear-gradient(0deg,rgba(0,0,0,.65),transparent)}
-.tile .live{display:flex;align-items:center;gap:5px;color:#7fe0a0;font:700 9px var(--font-mono);text-transform:uppercase}
-.tile .live .dotpulse{width:6px;height:6px;border-radius:50%;background:#e0554c}
-.tile.offline{background:#1c1c1c}
-.tile.offline .lbl{color:#9a938a}
-.chanlist{display:grid;gap:2px}
-.chanrow{display:flex;justify-content:space-between;align-items:center;gap:10px;padding:9px 10px;border-radius:7px;cursor:grab}
+.wallgrid.g16{grid-template-columns:repeat(4,1fr)}
+.wallgrid.g25{grid-template-columns:repeat(5,1fr)}
+.wallgrid.g36{grid-template-columns:repeat(6,1fr)}
+.wallgrid.g64{grid-template-columns:repeat(8,1fr)}
+.wallgrid.g256{grid-template-columns:repeat(16,1fr)}
+.wallgrid.g15{
+  grid-template-columns:2fr 2fr 1fr;grid-template-rows:1fr 1fr 1fr;
+  grid-template-areas:"t0 t0 t1" "t0 t0 t2" "t3 t4 t5";
+}
+.wallgrid.g17{
+  grid-template-columns:repeat(4,1fr);grid-template-rows:1.3fr 1.3fr 1.3fr 1fr;
+  grid-template-areas:"t0 t0 t0 t1" "t0 t0 t0 t2" "t0 t0 t0 t3" "t4 t5 t6 t7";
+}
+.wallgrid.g256 .tile .tilebar,.wallgrid.g256 .tile .tilefoot{display:none}
+.wallgrid.g64 .tile .tilebar .livetag span:last-child,.wallgrid.g64 .tile .tilefoot{display:none}
+
+.tile{position:relative;background:#111;border-radius:8px;aspect-ratio:16/10;overflow:hidden;border:1px solid #000}
+.tile.empty{
+  background:var(--panel-2);border:1.5px dashed var(--line);display:grid;place-items:center;
+  color:var(--muted);font:600 10.5px var(--font-body);transition:border-color .12s,background .12s;
+}
+.tile.empty.over{border-color:var(--brand);background:var(--brand-soft);color:var(--brand)}
+.tile.empty .dropcue{pointer-events:none;padding:0 8px;text-align:center}
+.tile:not(.empty).over{outline:2px solid var(--brand);outline-offset:-2px}
+
+.feedbg{position:absolute;inset:0;background:radial-gradient(120% 100% at 50% 120%,#1c2431 0%,#0a0c10 70%);}
+.feedbg::after{content:"";position:absolute;inset:0;background:
+  linear-gradient(200deg,transparent 46%,rgba(255,255,255,.05) 47%,transparent 48%),
+  linear-gradient(160deg,transparent 46%,rgba(255,255,255,.05) 47%,transparent 48%);
+}
+.silhouette{position:absolute;left:44%;bottom:20%;width:9%;opacity:.55}
+.silhouette::before{content:"";display:block;width:64%;aspect-ratio:1;border-radius:50%;background:#8b97ab;margin:0 auto 4px}
+.silhouette::after{content:"";display:block;width:100%;aspect-ratio:1/1.3;border-radius:30%;background:#8b97ab}
+
+.tilebar{position:absolute;top:0;left:0;right:0;z-index:1;display:flex;justify-content:space-between;align-items:flex-start;gap:6px;padding:7px 8px;background:linear-gradient(180deg,rgba(0,0,0,.6),transparent)}
+.tile .livetag{display:inline-flex;align-items:center;gap:4px;font:700 9px var(--font-mono);text-transform:uppercase;letter-spacing:.03em;color:#fff}
+.tile .livetag .sdot{width:6px;height:6px;border-radius:50%;background:#6ad48a}
+.tile .livetag.bad .sdot{background:#8a8f97}
+.tile .livetag.bad{color:#c9cdd4}
+.tile .chip{display:inline-flex;align-items:center;gap:5px;background:rgba(0,0,0,.4);color:#fff;font:600 10px var(--font-body);padding:2px 4px 2px 8px;border-radius:20px;max-width:150px}
+.tile .chip span{overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+.tile .chip button{display:grid;place-items:center;width:16px;height:16px;border-radius:50%;color:#fff;background:rgba(255,255,255,.14);flex:none}
+.tile .chip button:hover{background:rgba(255,255,255,.28)}
+.tile .chip button svg{width:9px;height:9px}
+.tilefoot{position:absolute;left:8px;bottom:6px;z-index:1;color:#cfd4dc;font:600 10px var(--font-mono)}
+.offlinemsg{position:absolute;inset:0;display:grid;place-items:center;justify-items:center;gap:6px;color:#787d86;font:600 10.5px var(--font-body)}
+.offlinemsg svg{width:26px;height:26px;opacity:.6}
+.tile.offline .feedbg{background:#17181b}
+
+.chanpanel .panel-head{gap:12px}
+.chansearch{display:flex;align-items:center;gap:7px;background:var(--panel-2);border:1px solid var(--line);border-radius:8px;padding:0 10px;height:34px;margin:0 8px 6px}
+.chansearch svg{width:14px;height:14px;color:var(--muted);flex:none}
+.chansearch input{border:0;outline:0;background:transparent;font:inherit;font-size:12px;width:100%;color:var(--ink)}
+.chanlist{display:grid;gap:2px;max-height:560px;overflow-y:auto}
+.chanrow{display:flex;align-items:center;gap:9px;padding:9px 10px;border-radius:7px;cursor:grab}
 .chanrow:hover{background:var(--panel-2)}
-.chanrow .n{font-weight:700;font-size:12px}
-.chanrow .ip{color:var(--muted);font-size:10.5px;font-family:var(--font-mono)}
+.chanrow:active{cursor:grabbing}
+.chdot{width:7px;height:7px;border-radius:50%;background:var(--brand);flex:none}
+.chdot.bad{background:var(--red)}
+.chinfo{min-width:0}
+.chinfo .n{font-weight:700;font-size:12px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+.chinfo .ip{color:var(--muted);font-size:10.5px;font-family:var(--font-mono);overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+
+#camwrap.fs{position:fixed;inset:0;z-index:50;background:var(--bg);padding:18px;overflow:auto}
+#camwrap.fs .wallwrap{padding:0}
 </style>
 </head>
 <body>
@@ -29,76 +89,207 @@
 <script src="assets/app.js"></script>
 <script>
 const DB = window.VDX_DB;
-let layout = 'g1';
-let wall = DB.cameraChannels.slice(0,1);
+const ALL_CH = DB.cameraChannels;
 
-function tile(ch) {
-  if (!ch) return `<div class="tile offline"><div class="lbl"><span>Пустой тайл</span></div></div>`;
+const LAYOUTS = {
+  '1':   { label:'1',   n:1,   cls:'g1'  },
+  '4':   { label:'4',   n:4,   cls:'g4'  },
+  '1+5': { label:'1+5', n:6,   cls:'g15' },
+  '1+7': { label:'1+7', n:8,   cls:'g17' },
+  '9':   { label:'9',   n:9,   cls:'g9'  },
+  '16':  { label:'16',  n:16,  cls:'g16' },
+  '25':  { label:'25',  n:25,  cls:'g25' },
+  '36':  { label:'36',  n:36,  cls:'g36' },
+  '64':  { label:'64',  n:64,  cls:'g64' },
+  '256': { label:'256', n:256, cls:'g256'},
+};
+
+let layoutKey = '4';
+let wall = ALL_CH.slice(0, LAYOUTS[layoutKey].n);
+let query = '';
+
+function esc(s) { return String(s).replace(/'/g, "\\'"); }
+function nowStr() { return new Date().toLocaleTimeString('ru-RU', { hour12:false }); }
+function currentN() { return LAYOUTS[layoutKey].n; }
+
+function ensureWallSize() {
+  const n = currentN();
+  if (wall.length < n) wall = wall.concat(new Array(n - wall.length).fill(null));
+  else wall = wall.slice(0, n);
+}
+
+/* ---------- video wall ---------- */
+function tileHTML(ch, idx) {
+  const dropAttrs = `ondragover="onTileDragOver(event)" ondragleave="onTileDragLeave(event)" ondrop="onTileDrop(event, ${idx})"`;
+  const areaAttr = (layoutKey === '1+5' || layoutKey === '1+7') ? `style="grid-area:t${idx}"` : '';
+  if (!ch) {
+    return `<div class="tile empty" ${areaAttr} ${dropAttrs}>
+      <span class="dropcue">Перетащите камеру сюда</span>
+    </div>`;
+  }
   const off = ch.status === 'offline';
-  return `<div class="tile ${off?'offline':''}">
-    <div class="lbl">
-      ${off ? '<span>Нет сигнала</span>' : `<span class="live"><span class="dotpulse"></span>Live</span>`}
-      <span>${ch.name}</span>
+  return `<div class="tile ${off ? 'offline' : ''}" ${areaAttr} ${dropAttrs}>
+    <div class="feedbg">${off ? '' : '<span class="silhouette"></span>'}</div>
+    ${off ? `<div class="offlinemsg">${svg('camera')}<span>Камера офлайн</span></div>` : ''}
+    <div class="tilebar">
+      <span class="livetag ${off ? 'bad' : ''}"><span class="sdot"></span>${off ? 'Нет сигнала' : 'Live'}</span>
+      <span class="chip"><span title="${ch.name}">${ch.name}</span><button onclick="event.stopPropagation();removeTile(${idx})" title="Убрать камеру">${svg('close')}</button></span>
     </div>
+    <div class="tilefoot">${off ? '—' : `<span class="ts" data-live="1">${nowStr()}</span>`}</div>
   </div>`;
 }
 
 function renderWall() {
-  const n = layout === 'g1' ? 1 : (layout === 'g4' ? 4 : 9);
-  document.getElementById('wall').className = 'wallgrid ' + layout;
-  const tiles = [];
-  for (let i = 0; i < n; i++) tiles.push(tile(wall[i]));
-  document.getElementById('wall').innerHTML = tiles.join('');
-  document.getElementById('wall-status').textContent = `${Math.min(wall.length,n)} из ${n} тайлов занято · ${DB.cameraChannels.length} каналов доступно`;
+  ensureWallSize();
+  const el = document.getElementById('wall');
+  el.className = 'wallgrid ' + LAYOUTS[layoutKey].cls;
+  el.innerHTML = wall.map((ch, i) => tileHTML(ch, i)).join('');
+  renderStatus();
 }
 
-function setLayout(l, btn) { layout = l; document.querySelectorAll('.layoutbtn').forEach(b=>b.classList.remove('active')); btn.classList.add('active'); renderWall(); }
-function autoFill() { wall = DB.cameraChannels.slice(0, layout==='g1'?1:(layout==='g4'?4:9)); renderWall(); toast('Сетка заполнена автоматически'); }
-function clearWall() { wall = []; renderWall(); toast('Раскладка очищена'); }
-function assignChannel(name) {
-  const ch = DB.cameraChannels.find(c => c.name === name);
-  const n = layout === 'g1' ? 1 : (layout === 'g4' ? 4 : 9);
-  if (wall.length >= n) wall.shift();
-  wall.push(ch);
+function renderStatus() {
+  const n = currentN();
+  const assigned = wall.filter(Boolean).length;
+  document.getElementById('wall-status').textContent =
+    `${assigned} из ${n} тайлов назначено · ${ALL_CH.length} каналов доступно`;
+}
+
+function setLayout(key, btn) {
+  layoutKey = key;
+  document.querySelectorAll('.layoutbtn').forEach(b => b.classList.remove('active'));
+  btn.classList.add('active');
+  ensureWallSize();
   renderWall();
-  toast(`«${name}» добавлена в раскладку`);
 }
 
+function autoFill() {
+  ensureWallSize();
+  const used = new Set(wall.filter(Boolean).map(c => c.name));
+  const pool = ALL_CH.filter(c => !used.has(c.name));
+  let pi = 0;
+  wall = wall.map(t => t || pool[pi++] || null);
+  renderWall();
+  toast('Сетка заполнена автоматически');
+}
+
+function clearWall() {
+  wall = new Array(currentN()).fill(null);
+  renderWall();
+  toast('Раскладка очищена');
+}
+
+function removeTile(idx) {
+  wall[idx] = null;
+  renderWall();
+}
+
+function assignToIndex(idx, name) {
+  const ch = ALL_CH.find(c => c.name === name);
+  if (!ch) return;
+  ensureWallSize();
+  wall[idx] = ch;
+  renderWall();
+  toast(`«${ch.name}» назначена на тайл`);
+}
+
+function assignNext(name) {
+  ensureWallSize();
+  let idx = wall.findIndex(t => !t);
+  if (idx === -1) idx = wall.length - 1;
+  assignToIndex(idx, name);
+}
+
+function onTileDragOver(e) { e.preventDefault(); e.currentTarget.classList.add('over'); }
+function onTileDragLeave(e) { e.currentTarget.classList.remove('over'); }
+function onTileDrop(e, idx) {
+  e.preventDefault();
+  e.currentTarget.classList.remove('over');
+  const name = e.dataTransfer.getData('text/plain');
+  if (name) assignToIndex(idx, name);
+}
+
+/* ---------- channel list + search ---------- */
 function chanRow(c) {
-  return `<div class="chanrow" onclick="assignChannel('${c.name}')">
-    <div><div class="n">${c.name}</div><div class="ip">${c.location} · ${c.ip}</div></div>
-    <span class="tag ${c.status==='live'?'ok':'bad'}">${c.status==='live'?'Онлайн':'Офлайн'}</span>
+  const off = c.status !== 'live';
+  return `<div class="chanrow" draggable="true"
+      ondragstart="event.dataTransfer.setData('text/plain','${esc(c.name)}')"
+      onclick="assignNext('${esc(c.name)}')"
+      title="${c.name} — ${c.ip}">
+    <span class="chdot ${off ? 'bad' : ''}"></span>
+    <div class="chinfo"><div class="n">${c.name}</div><div class="ip">${c.location} · ${c.ip}</div></div>
   </div>`;
 }
 
+function filteredChannels() {
+  if (!query) return ALL_CH;
+  return ALL_CH.filter(c =>
+    c.name.toLowerCase().includes(query) ||
+    c.location.toLowerCase().includes(query) ||
+    c.ip.toLowerCase().includes(query)
+  );
+}
+
+function renderChannels() {
+  const list = filteredChannels();
+  document.getElementById('chanlist').innerHTML =
+    list.length ? list.map(chanRow).join('') : emptyState('Камеры не найдены — попробуйте другой запрос');
+}
+
+function setQuery(v) {
+  query = v.trim().toLowerCase();
+  renderChannels();
+}
+
+/* ---------- view mode ---------- */
+function toggleViewMode() {
+  const el = document.getElementById('camwrap');
+  if (!document.fullscreenElement) {
+    if (el.requestFullscreen) el.requestFullscreen().catch(() => el.classList.toggle('fs'));
+    else el.classList.toggle('fs');
+  } else {
+    document.exitFullscreen();
+  }
+}
+document.addEventListener('fullscreenchange', () => {
+  document.getElementById('camwrap')?.classList.toggle('fs', !!document.fullscreenElement);
+});
+
+/* ---------- layout ---------- */
+const layoutBtns = Object.keys(LAYOUTS).map(key => {
+  const l = LAYOUTS[key];
+  return `<button class="layoutbtn ftab ${key === layoutKey ? 'active' : ''}" onclick="setLayout('${key}', this)">${l.label}</button>`;
+}).join('');
+
 const content = `
-${pageHead('Vadalex Tower · демо-аккаунт', 'Камеры', 'Перетащите камеру из списка каналов на любой тайл. Раскладки NVR от одиночного вида до 16×16.',
+${pageHead('DoorFlow Tower · демо-аккаунт', 'Камеры', 'Перетащите камеру из списка каналов на любой тайл. Раскладки NVR от одиночного вида до 16×16.',
   `<div style="display:flex;gap:8px">
      <button class="btn outline" onclick="autoFill()">${svg('refresh')}Автозаполнение</button>
      <button class="btn outline" onclick="clearWall()">${svg('close')}Очистить</button>
+     <button class="btn outline" onclick="toggleViewMode()">${svg('arrowUpRight')}Режим просмотра</button>
    </div>`)}
 
-<div class="grid2" style="grid-template-columns:1fr 300px">
+<div id="camwrap">
+<div class="grid2" style="grid-template-columns:1fr 300px;align-items:start">
   <section class="panel">
-    <div class="panel-head">
-      <div><h2>Раскладка</h2><p id="wall-status"></p></div>
-      <div style="display:flex;gap:4px">
-        <button class="layoutbtn ftab active" onclick="setLayout('g1',this)">1</button>
-        <button class="layoutbtn ftab" onclick="setLayout('g4',this)">4</button>
-        <button class="layoutbtn ftab" onclick="setLayout('g9',this)">9</button>
-      </div>
-    </div>
-    <div style="padding:16px 18px"><div class="wallgrid g4" id="wall"></div></div>
+    <div class="panel-head"><div><h2>Раскладка</h2><p id="wall-status"></p></div></div>
+    <div class="camlayout"><div class="ftabs">${layoutBtns}</div></div>
+    <div class="wallwrap"><div class="wallgrid g4" id="wall"></div></div>
   </section>
-  <section class="panel">
-    <div class="panel-head"><div><h2>Каналы</h2><p>Нажмите, чтобы добавить в раскладку</p></div></div>
-    <div class="chanlist" style="padding:6px 8px 10px">${DB.cameraChannels.map(chanRow).join('')}</div>
+  <section class="panel chanpanel">
+    <div class="panel-head"><div><h2>Каналы</h2><p>Перетащите камеру на тайл</p></div></div>
+    <div class="chansearch">${svg('search')}<input placeholder="Поиск камер..." oninput="setQuery(this.value)"></div>
+    <div class="chanlist" id="chanlist" style="padding:2px 8px 10px"></div>
   </section>
+</div>
 </div>
 `;
 
 renderShell('cameras', content);
 renderWall();
+renderChannels();
+setInterval(() => {
+  document.querySelectorAll('.ts[data-live]').forEach(el => el.textContent = nowStr());
+}, 1000);
 </script>
 </body>
 </html>

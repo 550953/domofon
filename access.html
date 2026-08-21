@@ -3,7 +3,7 @@
 <head>
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width, initial-scale=1">
-<title>Доступ — Vadalex Access</title>
+<title>Доступ — DoorFlow</title>
 <link rel="stylesheet" href="assets/fonts.css">
 <link rel="stylesheet" href="assets/styles.css">
 </head>
@@ -13,91 +13,101 @@
 <script>
 const DB = window.VDX_DB;
 let accessTab = 'Группы доступа';
+let selectedScheduleId = DB.schedules[0].id;
+let scheduleTemplate = '24/7';
 
+/* ============ Access Groups ============ */
+// Maps a door/area name to an icon when one exists in the icon set;
+// returns null when there's no good match, so the chip falls back to text-only.
+function doorChipIcon(name) {
+  const n = name.toLowerCase();
+  if (n.includes('лифт')) return 'elevator';
+  if (n.includes('холл') || n.includes('лобби') || n.includes('вход') || n.includes('гараж')) return 'doors';
+  if (n.includes('камер')) return 'camera';
+  return null;
+}
+function doorChip(name) {
+  const icon = doorChipIcon(name);
+  return `<span class="doorchip">${icon ? svg(icon) : ''}${name}</span>`;
+}
 function groupCard(g) {
+  const shown = g.doors.slice(0, 4);
+  const extra = g.doors.length - shown.length;
   return `<div class="entity">
     <div class="entity-head">
-      <div><h3>${g.name}</h3><p>${g.schedule}</p></div>
-      <button class="iconbtn" onclick="deleteGroup('${g.name.replace(/'/g,"")}')">${svg('trash')}</button>
+      <div><h3>${g.name}</h3><p>${g.desc}</p></div>
+      <div class="rowactions">
+        <button onclick="openEditGroup('${g.name.replace(/'/g,"")}')">${svg('penLine')}</button>
+        <button class="danger" onclick="deleteGroup('${g.name.replace(/'/g,"")}')">${svg('trash')}</button>
+      </div>
     </div>
-    <div class="entity-facts">
-      <div><b>${g.peopleCount.toLocaleString('ru-RU')}</b> человек · <b>${g.doorsCount}</b> дверей</div>
+    <div class="entity-facts" style="border-top:0;padding-top:0">
+      <div>${svg('people')} <b>${g.peopleCount.toLocaleString('ru-RU')}</b> человек &nbsp; ${svg('doors')} <b>${g.doorsCount}</b> дверей &nbsp; ${svg('clock')} ${g.schedule}</div>
     </div>
-    <div class="entity-actions">
-      <button onclick="openEditGroup('${g.name.replace(/'/g,"")}')">${svg('penLine')}Изменить</button>
+    <div class="doorchips">
+      ${shown.map(d => doorChip(d)).join('')}
+      ${extra > 0 ? `<span class="doorchip">+${extra}</span>` : ''}
     </div>
   </div>`;
 }
-
-function scheduleCard(s) {
-  return `<div class="entity"><div class="entity-head"><div><h3>${s.name}</h3><p>${s.desc}</p></div></div></div>`;
-}
-function holidayCard(h) {
-  return `<div class="entity"><div class="entity-head"><div><h3>${h.name}</h3><p>${h.date}</p></div>
-    <button class="iconbtn" onclick="toast('Праздник удалён')">${svg('trash')}</button></div></div>`;
-}
-
-function renderAccess() {
-  const grid = document.getElementById('access-grid');
-  const addBtn = document.getElementById('access-add-btn');
-  if (accessTab === 'Группы доступа') {
-    grid.innerHTML = DB.accessGroups.map(groupCard).join('');
-    addBtn.textContent = ''; addBtn.innerHTML = `${svg('plus')}Создать группу доступа`;
-    addBtn.onclick = openCreateGroup;
-  } else if (accessTab === 'Группы лифтов') {
-    grid.innerHTML = DB.elevators.slice(0,4).map(e => `<div class="entity"><div class="entity-head"><div><h3>${e.name} — группа</h3><p>${e.mode}</p></div></div></div>`).join('');
-    addBtn.innerHTML = `${svg('plus')}Создать группу лифтов`;
-    addBtn.onclick = () => toast('Демо: создание группы лифтов');
-  } else if (accessTab === 'Расписания') {
-    grid.innerHTML = DB.schedules.map(scheduleCard).join('');
-    addBtn.innerHTML = `${svg('plus')}Создать расписание`;
-    addBtn.onclick = () => toast('Демо: создание расписания');
-  } else {
-    grid.innerHTML = DB.holidays.map(holidayCard).join('');
-    addBtn.innerHTML = `${svg('plus')}Добавить праздник`;
-    addBtn.onclick = () => toast('Демо: добавление праздника');
-  }
-}
-
-function setAccessTab(v) { accessTab = v; document.querySelectorAll('#access-tabs .ftab').forEach(b => b.classList.toggle('active', b.textContent === v)); renderAccess(); }
-
 function openCreateGroup() {
   openModal('Создать группу доступа', `
-    <div class="formgrid">
-      ${fField('Название', fInput('ag-name','','Например, Служба безопасности'))}
-      ${fField('Расписание', fSelect('ag-sched', DB.schedules.map(s=>s.name), '24/7'))}
-      ${fField('Описание', fTextarea('ag-desc','','Кто входит в эту группу и зачем.'), {full:true})}
+    <p class="desc">Объедините людей в группу и предоставьте им доступ к одним и тем же дверям и расписанию.</p>
+    ${fField('Название', fInput('ag-name', '', 'Доступ к бассейну'), { full: true })}
+    ${fField('Описание', fTextarea('ag-desc', ''), { full: true })}
+    ${fField('Двери', doorChecklist('ag-doors', []), { full: true })}
+    <div class="formgrid" style="margin-top:12px">
+      ${fField('Расписание', fSelect('ag-sched', DB.schedules.map(s => s.name), '24/7'))}
+      ${fField('Поведение при истечении срока', fSelect('ag-exp', ['Отозвать доступ','Сохранить доступ','Уведомить менеджера'], 'Отозвать доступ'))}
     </div>
   `);
   document.getElementById('modal-root').querySelector('.modal').insertAdjacentHTML('beforeend', modalFooter(`
     <button class="btn outline" onclick="closeModal()">Отмена</button>
-    <button class="btn" onclick="saveNewGroup()">Создать</button>
+    <button class="btn" onclick="saveNewGroup()">Создать группу</button>
   `));
+}
+function doorChecklist(id, selected) {
+  return `<div class="doorlist" id="${id}">${DB.doors.map(d => `<label><input type="checkbox" value="${d.name}" ${selected.includes(d.name) ? 'checked' : ''}>${d.name}</label>`).join('')}</div>`;
+}
+function checklistValues(id) {
+  return Array.from(document.querySelectorAll(`#${id} input:checked`)).map(i => i.value);
 }
 function saveNewGroup() {
   const name = document.getElementById('ag-name').value.trim() || 'Новая группа';
-  DB.accessGroups.unshift({ name, peopleCount: 0, doorsCount: 0, schedule: document.getElementById('ag-sched').value });
+  const doors = checklistValues('ag-doors');
+  DB.accessGroups.unshift({
+    name, desc: document.getElementById('ag-desc').value || '', peopleCount: 0, doorsCount: doors.length,
+    doors, schedule: document.getElementById('ag-sched').value, expirationBehavior: document.getElementById('ag-exp').value
+  });
   closeModal(); renderAccess(); toast(`Группа «${name}» создана`);
 }
 function openEditGroup(name) {
   const g = DB.accessGroups.find(x => x.name === name);
   if (!g) return;
-  openModal(`Изменить: ${g.name}`, `
-    <div class="formgrid">
-      ${fField('Название', fInput('eg-name', g.name))}
-      ${fField('Расписание', fSelect('eg-sched', DB.schedules.map(s=>s.name), g.schedule))}
+  openModal('Изменить группу доступа', `
+    <p class="desc">Объедините людей в группу и предоставьте им доступ к одним и тем же дверям и расписанию.</p>
+    ${fField('Название', fInput('eg-name', g.name), { full: true })}
+    ${fField('Описание', fTextarea('eg-desc', g.desc), { full: true })}
+    ${fField('Двери', doorChecklist('eg-doors', g.doors), { full: true })}
+    <div class="formgrid" style="margin-top:12px">
+      ${fField('Расписание', fSelect('eg-sched', DB.schedules.map(s => s.name), g.schedule))}
+      ${fField('Поведение при истечении срока', fSelect('eg-exp', ['Отозвать доступ','Сохранить доступ','Уведомить менеджера'], g.expirationBehavior || 'Отозвать доступ'))}
     </div>
   `);
   document.getElementById('modal-root').querySelector('.modal').insertAdjacentHTML('beforeend', modalFooter(`
     <button class="btn outline" onclick="closeModal()">Отмена</button>
-    <button class="btn" onclick="saveGroupEdit('${name.replace(/'/g,"")}')">Сохранить</button>
+    <button class="btn" onclick="saveGroupEdit('${name.replace(/'/g,"")}')">Сохранить изменения</button>
   `));
 }
 function saveGroupEdit(oldName) {
   const g = DB.accessGroups.find(x => x.name === oldName);
   if (!g) return;
   g.name = document.getElementById('eg-name').value.trim() || g.name;
+  g.desc = document.getElementById('eg-desc').value;
+  g.doors = checklistValues('eg-doors');
+  g.doorsCount = g.doors.length;
   g.schedule = document.getElementById('eg-sched').value;
+  g.expirationBehavior = document.getElementById('eg-exp').value;
   closeModal(); renderAccess(); toast('Группа обновлена');
 }
 function deleteGroup(name) {
@@ -106,13 +116,170 @@ function deleteGroup(name) {
   renderAccess(); toast('Группа удалена');
 }
 
+/* ============ Elevator Groups ============ */
+function elevatorGroupCard(e) {
+  return `<div class="entity">
+    <div class="entity-head">
+      <div><h3>${e.name}</h3><p>${e.desc}</p></div>
+      <div class="rowactions">
+        <button onclick="openEditElevatorGroup('${e.id}')">${svg('penLine')}</button>
+        <button class="danger" onclick="deleteElevatorGroup('${e.id}')">${svg('trash')}</button>
+      </div>
+    </div>
+    <div class="entity-facts" style="border-top:0;padding-top:0">
+      <div>${svg('people')} <b>${e.peopleCount}</b> человек &nbsp; ${svg('elevator')} <b>${e.elevatorsCount}</b> лифт(ов) &nbsp; ${svg('clock')} ${e.schedule} &nbsp; ${svg('doors')} ${e.building}</div>
+    </div>
+    <div class="tblwrap" style="margin-top:4px">
+      <table class="dt">
+        <thead><tr><th>Этаж</th><th>Метка</th><th>Реле</th><th>Контроллер</th><th>Доступ</th></tr></thead>
+        <tbody>${e.floors.map(f => `<tr><td>${f.floor}</td><td>${f.label}</td><td class="mono">${f.relay}</td><td class="mono">${f.controller}</td>
+          <td><span class="tag ${f.restricted ? 'warn' : 'ok'}">${f.restricted ? 'Ограничен' : 'Открыт'}</span></td></tr>`).join('')}</tbody>
+      </table>
+    </div>
+  </div>`;
+}
+function openEditElevatorGroup(id) {
+  const g = DB.elevatorGroups.find(x => x.id === id);
+  if (!g) return;
+  openModal('Изменить группу лифтов', `
+    <p class="desc">Сопоставьте каждый этаж с релейным выходом на конкретном контроллере лифта.</p>
+    <div class="formgrid">
+      ${fField('Название группы', fInput('eeg-name', g.name))}
+      ${fField('Здание', fSelect('eeg-building', DB.elevatorBuildings, g.building))}
+    </div>
+    ${fField('Описание', fTextarea('eeg-desc', g.desc), { full: true })}
+    <div class="formgrid">
+      ${fField('Лифты', `<div class="checklist" id="eeg-elevators">${DB.elevatorRoster.map(name => `<label><input type="checkbox" ${g.elevators.some(e => name.startsWith(e)) ? 'checked' : ''}>${name}</label>`).join('')}</div>`)}
+      ${fField('Расписание', fSelect('eeg-sched', DB.schedules.map(s => s.name), g.schedule))}
+    </div>
+    <div style="display:flex;justify-content:space-between;align-items:center;margin-top:10px">
+      <b style="font:700 12.5px var(--font-display)">Этажи (${g.floors.length})</b>
+      <button class="btn outline" onclick="addFloorRow('${id}')">${svg('plus')}Добавить этаж</button>
+    </div>
+    <div id="eeg-floors" style="margin-top:8px">${floorRows(g.floors)}</div>
+  `, { wide: true });
+  document.getElementById('modal-root').querySelector('.modal').insertAdjacentHTML('beforeend', modalFooter(`
+    <button class="btn outline" onclick="closeModal()">Отмена</button>
+    <button class="btn" onclick="saveElevatorGroup('${id}')">Сохранить изменения</button>
+  `));
+}
+function floorRows(floors) {
+  return floors.map((f, i) => `<div class="formgrid" style="grid-template-columns:70px 1fr 110px 130px 70px 70px;align-items:center;gap:8px;margin-bottom:8px" data-floor-row="${i}">
+    <input value="${f.floor}" class="fr-floor">
+    <input value="${f.label}" class="fr-label">
+    <select class="fr-relay">${DB.elevatorRelays.map(r => `<option ${r === f.relay ? 'selected' : ''}>${r}</option>`).join('')}</select>
+    <select class="fr-ctrl">${DB.elevatorControllers.map(c => `<option ${c === f.controller ? 'selected' : ''}>${c}</option>`).join('')}</select>
+    <label class="switch"><input type="checkbox" class="fr-restricted" ${f.restricted ? 'checked' : ''}><span class="slider"></span></label>
+    <button class="btn outline" style="color:var(--red);border-color:var(--red-soft)" onclick="this.closest('[data-floor-row]').remove()">${svg('trash')}</button>
+  </div>`).join('');
+}
+function addFloorRow(id) {
+  const wrap = document.getElementById('eeg-floors');
+  wrap.insertAdjacentHTML('beforeend', floorRows([{ floor: '', label: '', relay: DB.elevatorRelays[0], controller: DB.elevatorControllers[0], restricted: true }]));
+}
+function saveElevatorGroup(id) {
+  const g = DB.elevatorGroups.find(x => x.id === id);
+  if (!g) return;
+  g.name = document.getElementById('eeg-name').value.trim() || g.name;
+  g.building = document.getElementById('eeg-building').value;
+  g.desc = document.getElementById('eeg-desc').value;
+  g.schedule = document.getElementById('eeg-sched').value;
+  g.floors = Array.from(document.querySelectorAll('[data-floor-row]')).map(row => ({
+    floor: row.querySelector('.fr-floor').value,
+    label: row.querySelector('.fr-label').value,
+    relay: row.querySelector('.fr-relay').value,
+    controller: row.querySelector('.fr-ctrl').value,
+    restricted: row.querySelector('.fr-restricted').checked
+  }));
+  closeModal(); renderAccess(); toast('Группа лифтов обновлена');
+}
+function deleteElevatorGroup(id) {
+  const idx = DB.elevatorGroups.findIndex(x => x.id === id);
+  if (idx > -1) DB.elevatorGroups.splice(idx, 1);
+  renderAccess(); toast('Группа лифтов удалена');
+}
+
+/* ============ Schedules ============ */
+function scheduleList() {
+  return `<div class="panel"><div class="panel-head"><div><h2>Расписания</h2></div></div>
+    <div class="rows">${DB.schedules.map(s => `<div class="row" style="cursor:pointer;${s.id === selectedScheduleId ? 'background:var(--panel-2)' : ''}" onclick="selectSchedule('${s.id}')">
+      <div class="info"><div class="name">${s.name}</div><div class="meta"><i>${s.desc}</i></div></div></div>`).join('')}
+    </div></div>`;
+}
+function scheduleDetail() {
+  const s = DB.schedules.find(x => x.id === selectedScheduleId) || DB.schedules[0];
+  const templates = ['24/7', 'Рабочие часы', 'Будни', 'Свой вариант'];
+  return `<div class="panel">
+    <div class="panel-head"><div><h2>${s.name}</h2><p>Недельные интервалы времени, используемые группами доступа.</p></div>
+      <button class="btn outline" onclick="toast('Временной интервал добавлен')">${svg('plus')}Добавить интервал</button></div>
+    <div style="padding:16px 18px 0"><div class="filtertabs">${templates.map(t => `<button class="ftab ${t === scheduleTemplate ? 'active' : ''}" onclick="setScheduleTemplate('${t}')">${t}</button>`).join('')}</div></div>
+    <div style="padding:16px 18px">
+      ${Object.entries(s.week).map(([day, range]) => `<div class="weekrow ${range ? '' : 'off'}"><b>${day}</b><span>${range || 'Нет доступа'}</span></div>`).join('')}
+    </div>
+  </div>`;
+}
+function selectSchedule(id) { selectedScheduleId = id; renderAccess(); }
+function setScheduleTemplate(t) { scheduleTemplate = t; renderAccess(); }
+
+/* ============ Holidays ============ */
+function holidayList() {
+  return `<div class="panel"><div class="panel-head"><div><h2>Праздничные расписания</h2></div></div>
+    <div class="rows">${DB.holidays.map(h => `<div class="row"><span class="person">${svg('clock')}</span>
+      <div class="info"><div class="name">${h.name}</div><div class="meta"><i>${h.date}</i></div></div>
+      <span class="tag ${h.access === 'Нет доступа' ? 'bad' : (h.access === '24/7 доступ' ? 'ok' : 'warn')}">${h.access}</span></div>`).join('')}
+    </div></div>`;
+}
+function holidayForm() {
+  return `<div class="panel">
+    <div class="panel-head"><div><h2>Добавить праздник</h2></div></div>
+    <div style="padding:16px 18px">
+      ${fField('Название праздника', fInput('h-name', '', 'День труда'), { full: true })}
+      ${fField('Дата', fInput('h-date', '', '7 сентября 2026'), { full: true })}
+      ${fField('Поведение доступа', fSelect('h-access', DB.holidayAccessOptions, 'По расписанию'), { full: true })}
+      <button class="btn" style="width:100%;justify-content:center;margin-top:8px" onclick="addHoliday()">Добавить праздник</button>
+      <div class="detail-row" style="margin-top:14px;padding-top:14px;border-top:1px dashed var(--line)"><span>Применяется к</span><span>Все группы доступа</span></div>
+    </div>
+  </div>`;
+}
+function addHoliday() {
+  const name = document.getElementById('h-name').value.trim() || 'Новый праздник';
+  const date = document.getElementById('h-date').value.trim() || '—';
+  const access = document.getElementById('h-access').value;
+  DB.holidays.push({ id: 'h-' + Date.now(), name, date, access });
+  renderAccess();
+  toast('Праздник добавлен');
+}
+
+function renderAccess() {
+  const grid = document.getElementById('access-grid');
+  const addBtn = document.getElementById('access-add-btn');
+  addBtn.style.display = 'inline-flex';
+  if (accessTab === 'Группы доступа') {
+    grid.innerHTML = `<div class="cardgrid">${DB.accessGroups.map(groupCard).join('')}</div>`;
+    addBtn.innerHTML = `${svg('plus')}Создать группу доступа`;
+    addBtn.onclick = openCreateGroup;
+  } else if (accessTab === 'Группы лифтов') {
+    grid.innerHTML = `<div class="cardgrid">${DB.elevatorGroups.map(elevatorGroupCard).join('')}</div>`;
+    addBtn.innerHTML = `${svg('plus')}Создать группу лифтов`;
+    addBtn.onclick = () => toast('Демо: создание группы лифтов');
+  } else if (accessTab === 'Расписания') {
+    grid.innerHTML = `<div class="grid2">${scheduleList()}${scheduleDetail()}</div>`;
+    addBtn.style.display = 'none';
+  } else {
+    grid.innerHTML = `<div class="grid2">${holidayList()}${holidayForm()}</div>`;
+    addBtn.style.display = 'none';
+  }
+}
+
+function setAccessTab(v) { accessTab = v; document.querySelectorAll('#access-tabs .ftab').forEach(b => b.classList.toggle('active', b.textContent === v)); renderAccess(); }
+
 const tabs = ['Группы доступа','Группы лифтов','Расписания','Праздники'];
 const content = `
-${pageHead('Vadalex Tower · демо-аккаунт', 'Доступ', 'Решайте, кто и какие двери и этажи может открывать, и когда.',
-  `<button class="btn" id="access-add-btn" onclick="openCreateGroup()"></button>`)}
+${pageHead('DoorFlow Tower · демо-аккаунт', 'Доступ', 'Решайте, кто и какие двери и этажи может открывать, и когда.',
+  `<button class="btn" id="access-add-btn"></button>`)}
 
 <div id="access-tabs">${filterTabs('access', tabs, 'Группы доступа', 'setAccessTab')}</div>
-<div class="cardgrid" id="access-grid" style="margin-top:16px"></div>
+<div id="access-grid" style="margin-top:16px"></div>
 `;
 
 renderShell('access', content);

@@ -1,0 +1,228 @@
+<!DOCTYPE html>
+<html lang="ru">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Добавить человека — DoorFlow</title>
+<link rel="stylesheet" href="assets/fonts.css">
+<link rel="stylesheet" href="assets/styles.css">
+</head>
+<body>
+<script src="assets/db.js"></script>
+<script src="assets/app.js"></script>
+<script>
+const DB = window.VDX_DB;
+const STEP_LABELS = ['Основная информация', 'Регистрация лица', 'Учётные данные', 'Доступ', 'Проверка'];
+let step = 0;
+const wiz = {
+  firstName: '', lastName: '', type: 'Житель', unit: '', email: '', phone: '', expiration: '',
+  appAccess: false, login: '', password: '', role: 'Администратор',
+  face: null, // null | {quality:'Хорошее'}
+  credType: 'Карта', cardNumber: '', facilityCode: '',
+  accessGroup: null
+};
+
+function grab() {
+  if (step === 0) {
+    wiz.firstName = val('bi-first', wiz.firstName);
+    wiz.lastName = val('bi-last', wiz.lastName);
+    wiz.type = val('bi-type', wiz.type);
+    wiz.unit = val('bi-unit', wiz.unit);
+    wiz.email = val('bi-email', wiz.email);
+    wiz.phone = val('bi-phone', wiz.phone);
+    wiz.expiration = val('bi-exp', wiz.expiration);
+    if (wiz.appAccess) {
+      wiz.login = val('bi-login', wiz.login);
+      wiz.password = val('bi-pass', wiz.password);
+      wiz.role = val('bi-role', wiz.role);
+    }
+  } else if (step === 2) {
+    wiz.credType = val('cr-type', wiz.credType);
+    if (wiz.credType === 'Карта') {
+      wiz.cardNumber = val('cr-num', wiz.cardNumber);
+      wiz.facilityCode = val('cr-fac', wiz.facilityCode);
+    }
+  }
+}
+function val(id, fallback) {
+  const el = document.getElementById(id);
+  return el ? el.value : fallback;
+}
+
+function toggleAppAccess(checked) {
+  wiz.appAccess = checked;
+  render();
+}
+function setBiType(v) { wiz.type = v; render(); }
+
+function stepBasic() {
+  return `
+    <div class="formgrid">
+      ${fField('Имя', fInput('bi-first', wiz.firstName))}
+      ${fField('Фамилия', fInput('bi-last', wiz.lastName))}
+      ${fField('Тип человека', fSelectOnChange('bi-type', DB.wizardConfig.personTypes, wiz.type, 'setBiType'))}
+      ${fField('Квартира / отдел', fInput('bi-unit', wiz.unit, 'Кв. 1204'))}
+      ${fField('Email', fInput('bi-email', wiz.email))}
+      ${fField('Телефон', fInput('bi-phone', wiz.phone))}
+      ${fField('Срок действия', fInput('bi-exp', wiz.expiration, 'Необязательно'))}
+    </div>
+    <label class="banner info" style="display:flex;gap:10px;align-items:flex-start;cursor:pointer;margin-top:16px">
+      <input type="checkbox" style="margin-top:2px" ${wiz.appAccess ? 'checked' : ''} onchange="toggleAppAccess(this.checked)">
+      <span><b>Доступ в приложение</b>Позволяет этому человеку входить в DoorFlow с логином, паролем и ролью оператора.</span>
+    </label>
+    ${wiz.appAccess ? `
+    <div class="formgrid" style="margin-top:14px">
+      ${fField('Логин', fInput('bi-login', wiz.login))}
+      ${fField('Пароль', `<input id="bi-pass" type="password" value="${wiz.password}">`)}
+      ${fField('Роль', fSelect('bi-role', ['Администратор', 'Менеджер', 'Оператор'], wiz.role), { full: true })}
+    </div>` : ''}
+  `;
+}
+
+function stepFace() {
+  if (wiz.face) {
+    return `
+    <div class="dropzone ok">
+      <div class="dz-ic">${svg('scanFace')}</div>
+      <h4>Лицо распознано</h4>
+      <p>Качество изображения: ${wiz.face.quality}</p>
+      <div class="dz-actions">
+        <button class="btn" onclick="doUpload()">${svg('upload')}Загрузить фото</button>
+        <button class="btn outline" onclick="doTakePhoto()">${svg('camera')}Сделать фото</button>
+        <a class="dz-skip" onclick="skipFace()">Пропустить</a>
+      </div>
+    </div>
+    <div class="entity-badges" style="margin-top:14px">
+      <span class="tag ok">Лицо зарегистрировано</span>
+      <span class="tag ok">${wiz.face.quality}</span>
+    </div>`;
+  }
+  return `
+    <div class="dropzone">
+      <div class="dz-ic">${svg('scanFace')}</div>
+      <h4>Добавить лицо</h4>
+      <p>Загрузите чёткое фото анфас или сделайте снимок камерой устройства.</p>
+      <div class="dz-actions">
+        <button class="btn" onclick="doUpload()">${svg('upload')}Загрузить фото</button>
+        <button class="btn outline" onclick="doTakePhoto()">${svg('camera')}Сделать фото</button>
+        <a class="dz-skip" onclick="skipFace()">Пропустить пока</a>
+      </div>
+    </div>`;
+}
+function doUpload() { wiz.face = { quality: 'Хорошее' }; render(); toast('Фото загружено'); }
+function doTakePhoto() { wiz.face = { quality: 'Хорошее' }; render(); toast('Фото сделано'); }
+function skipFace() { wiz.face = null; step = 2; render(); }
+
+function stepCredentials() {
+  const isCard = wiz.credType === 'Карта';
+  return `
+    ${fField('Добавить учётные данные', fSelectOnChange('cr-type', DB.wizardConfig.credentialTypes, wiz.credType, 'setCredType'))}
+    ${isCard ? `
+    <div class="formgrid" style="margin-top:14px">
+      ${fField('Номер карты', fInput('cr-num', wiz.cardNumber))}
+      ${fField('Код объекта (необязательно)', fInput('cr-fac', wiz.facilityCode))}
+    </div>` : `<p class="hint" style="margin-top:10px">Учётные данные «${wiz.credType}» будут выданы после создания человека.</p>`}
+  `;
+}
+function setCredType(v) { wiz.credType = v; render(); }
+
+function stepAccess() {
+  return `<p class="hint" style="margin:-4px 0 12px">Выберите группу доступа</p>
+    <div class="optgrid">
+      ${DB.accessGroups.map(g => `
+      <div class="optcard ${wiz.accessGroup === g.name ? 'sel' : ''}" onclick="selectGroup('${g.name.replace(/'/g, "")}')">
+        <b>${g.name}</b>
+        <span>${groupDesc(g.name)}</span>
+        <div class="meta">${g.doorsCount} дверей · ${g.schedule}</div>
+      </div>`).join('')}
+    </div>`;
+}
+function groupDesc(name) {
+  const map = {
+    'Жители 24/7': 'Круглосуточный доступ жителей ко всем местам общего пользования.',
+    'Персонал': 'Доступ персонала здания в рабочие часы.',
+    'Управление': 'Неограниченный доступ для команды управления.',
+    'Клининг': 'Доступ клининговой службы в зоны обслуживания.',
+    'Только бассейн': 'Доступ только к зоне отдыха для сезонных участников.',
+    'Только гараж': 'Доступ к паркингу без входа в здание.'
+  };
+  return map[name] || '';
+}
+function selectGroup(name) { wiz.accessGroup = name; render(); }
+
+function stepReview() {
+  const fullName = `${wiz.firstName} ${wiz.lastName}`.trim() || '—';
+  return `<div class="detail-list">
+    <div class="detail-row"><span>Имя</span><span>${fullName}</span></div>
+    <div class="detail-row"><span>Тип человека</span><span>${wiz.type}</span></div>
+    <div class="detail-row"><span>Квартира / отдел</span><span>${wiz.unit || '—'}</span></div>
+    <div class="detail-row"><span>Email</span><span>${wiz.email || '—'}</span></div>
+    <div class="detail-row"><span>Телефон</span><span>${wiz.phone || '—'}</span></div>
+    <div class="detail-row"><span>Срок действия</span><span>${wiz.expiration || 'Без срока'}</span></div>
+    <div class="detail-row"><span>Лицо</span><span>${wiz.face ? `<span class="tag ok">Зарегистрировано</span>` : 'Не зарегистрировано'}</span></div>
+    <div class="detail-row"><span>Учётные данные</span><span>${wiz.credType}${wiz.credType === 'Карта' && wiz.cardNumber ? ' · ' + wiz.cardNumber : ''}</span></div>
+    <div class="detail-row"><span>Группа доступа</span><span>${wiz.accessGroup || '—'}</span></div>
+    <div class="detail-row"><span>Доступ в приложение</span><span>${wiz.appAccess ? `${wiz.role} · ${wiz.login || '—'}` : 'Нет доступа в консоль'}</span></div>
+  </div>`;
+}
+
+function stepBody() {
+  if (step === 0) return stepBasic();
+  if (step === 1) return stepFace();
+  if (step === 2) return stepCredentials();
+  if (step === 3) return stepAccess();
+  return stepReview();
+}
+function stepCardTitle() {
+  return STEP_LABELS[step];
+}
+
+function nextStep() {
+  grab();
+  if (step === 4) { createPerson(); return; }
+  step++;
+  render();
+}
+function prevStep() {
+  grab();
+  step--;
+  render();
+}
+function createPerson() {
+  const fullName = `${wiz.firstName} ${wiz.lastName}`.trim() || 'Новый человек';
+  const initials = initialsOf(fullName);
+  const id = fullName.toLowerCase().replace(/\s+/g, '-');
+  DB.people.unshift({
+    id, initials, name: fullName, role: wiz.appAccess ? wiz.role : null, type: wiz.type,
+    unit: wiz.unit || '—', accessGroup: wiz.accessGroup || (DB.accessGroups[0] && DB.accessGroups[0].name) || '—',
+    status: 'Активен', firstName: wiz.firstName, lastName: wiz.lastName,
+    email: wiz.email || '—', phone: wiz.phone || '—', expiration: wiz.expiration || null, notes: null,
+    faceEnrolled: !!wiz.face, faceQuality: wiz.face ? wiz.face.quality : null, faceEnrolledDate: wiz.face ? 'Только что' : null,
+    credentials: [{ type: wiz.credType, label: wiz.credType === 'Карта' ? `Карта •${wiz.cardNumber || '----'}` : `${wiz.credType} — ожидает выпуска` }],
+    appAccess: { enabled: wiz.appAccess, login: wiz.appAccess ? wiz.login : null, role: wiz.appAccess ? wiz.role : null }
+  });
+  toast(`${fullName} добавлен(а)`);
+  window.location.href = 'people.html';
+}
+
+function render() {
+  const foot = `
+    ${step > 0 ? `<a class="wback" onclick="prevStep()">Назад</a>` : `<span></span>`}
+    <button class="btn" onclick="nextStep()">${step === 4 ? 'Создать человека' : 'Продолжить'}</button>
+  `;
+  document.getElementById('wizard-slot').innerHTML = wizardPage({
+    title: 'Добавить человека',
+    sub: 'Пять коротких шагов: данные, лицо, учётные данные, доступ, проверка.',
+    cancelHref: 'people.html',
+    stepsHTML: wizardSteps(STEP_LABELS, step),
+    cardTitle: stepCardTitle(),
+    bodyHTML: stepBody(),
+    footHTML: foot
+  });
+}
+
+renderShell('people', `<div id="wizard-slot"></div>`);
+render();
+</script>
+</body>
+</html>

@@ -3,7 +3,7 @@
 <head>
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width, initial-scale=1">
-<title>Отчёты — Vadalex Access</title>
+<title>Отчёты — DoorFlow</title>
 <link rel="stylesheet" href="assets/fonts.css">
 <link rel="stylesheet" href="assets/styles.css">
 </head>
@@ -31,7 +31,7 @@ function renderReports() { document.getElementById('reports-grid').innerHTML = D
 
 const ranges = ['Сегодня','Вчера','Последние 7 дней','Последние 30 дней'];
 const content = `
-${pageHead('Vadalex Tower · демо-аккаунт', 'Отчёты', 'Отвечайте на вопросы о доступе без выгрузки сырых логов.', '')}
+${pageHead('DoorFlow Tower · демо-аккаунт', 'Отчёты', 'Отвечайте на вопросы о доступе без выгрузки сырых логов.', '')}
 
 <div id="range-tabs">${filterTabs('range', ranges, 'Последние 7 дней', 'setRange')}</div>
 <div class="cardgrid" id="reports-grid" style="margin-top:16px"></div>

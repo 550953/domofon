@@ -1,0 +1,512 @@
+<!DOCTYPE html>
+<html lang="ru">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Добавить устройство — DoorFlow</title>
+<link rel="stylesheet" href="assets/fonts.css">
+<link rel="stylesheet" href="assets/styles.css">
+</head>
+<body>
+<script src="assets/db.js"></script>
+<script src="assets/app.js"></script>
+<script>
+const DB = window.VDX_DB;
+const STEP_LABELS = ['Тип устройства', 'Производитель', 'Подключение', 'Конфигурация', 'Готово'];
+let step = 0;
+const w = {
+  deviceType: null, manufacturer: null,
+  name: '', ip: '', port: '', apiToken: '', untrusted: true,
+  username: 'admin', password: '', doorChannel: 'Дверь 1',
+  controllerId: '', deviceKey: '', relay: 'Реле 1',
+  tested: false, model: '', serial: '', firmware: '',
+  doorName: '', location: '', timezone: 'Europe/Amsterdam'
+};
+const DEVTYPE_MODEL = { face: ['FR-5000','FR503'+Math.floor(Math.random()*90000+10000),'3.4.2'], controller: ['DC-220','DC2'+Math.floor(Math.random()*90000+10000),'2.9.1'], reader: ['RD-100','RD1'+Math.floor(Math.random()*90000+10000),'1.6.0'], other: ['GEN-1','GN'+Math.floor(Math.random()*90000+10000),'1.0.0'] };
+
+function stepDeviceType() {
+  const cards = DB.wizardConfig.deviceTypes.map(t => `
+    <div class="optcard ${w.deviceType === t.key ? 'sel' : ''}" onclick="selectType('${t.key}')"><b>${t.name}</b></div>`).join('');
+  return `<div class="optgrid">${cards}</div>
+    ${w.deviceType === 'camera' ? `<div class="banner info" style="margin-top:16px">IP-камеры подключаются через настройку ONVIF: обнаружение в сети, учётные данные, определение возможностей и профили потоков.</div>` : ''}`;
+}
+function selectType(k) { w.deviceType = k; render(); }
+
+function stepManufacturer() {
+  const cards = DB.wizardConfig.manufacturers.map(m => `
+    <div class="optcard ${w.manufacturer === m.key ? 'sel' : ''}" onclick="selectManufacturer('${m.key}')"><b>${m.name}</b><span>${m.desc}</span></div>`).join('');
+  return `<div class="optgrid">${cards}</div>`;
+}
+function selectManufacturer(k) { w.manufacturer = k; if (!w.name) w.name = 'Ридер лица — Холл'; render(); }
+
+function stepConnection() {
+  const manuName = DB.wizardConfig.manufacturers.find(m => m.key === w.manufacturer).name;
+  let fields = '';
+  if (w.manufacturer === 'unifi') {
+    fields = `
+      ${fField('Название устройства', fInput('c-name', w.name))}
+      ${fField('Производитель', `<input value="${manuName}" disabled>`)}
+      ${fField('IP / хост консоли', fInput('c-ip', w.ip, '192.168.1.1'))}
+      ${fField('Порт', fInput('c-port', w.port || '12445'))}
+      ${fField('API-токен', `<input id="c-token" type="password" value="${w.apiToken}">`, { full: true })}
+      <label class="banner info" style="display:flex;gap:10px;align-items:flex-start;cursor:pointer;grid-column:1/-1">
+        <input type="checkbox" id="c-untrusted" style="margin-top:2px" ${w.untrusted ? 'checked' : ''}>
+        <span><b>Разрешить недоверенный сертификат</b>Принять самоподписанный сертификат консоли UniFi.</span>
+      </label>`;
+  } else if (w.manufacturer === 'hikvision') {
+    fields = `
+      ${fField('Название устройства', fInput('c-name', w.name))}
+      ${fField('Производитель', `<input value="${manuName}" disabled>`)}
+      ${fField('IP контроллера', fInput('c-ip', w.ip, '192.168.1.50'))}
+      ${fField('Порт', fInput('c-port', w.port || '8000'))}
+      ${fField('Имя пользователя', fInput('c-user', w.username))}
+      ${fField('Пароль', `<input id="c-pass" type="password" value="${w.password}">`)}
+      ${fField('Дверь / канал', fSelect('c-door', ['Дверь 1','Дверь 2','Дверь 3','Дверь 4'], w.doorChannel))}`;
+  } else {
+    fields = `
+      ${fField('Название устройства', fInput('c-name', w.name))}
+      ${fField('Производитель', `<input value="${manuName}" disabled>`)}
+      ${fField('IP контроллера', fInput('c-ip', w.ip, '192.168.1.80'))}
+      ${fField('ID контроллера', fInput('c-cid', w.controllerId, 'VAC-000123'))}
+      ${fField('Ключ устройства', `<input id="c-key" type="password" value="${w.deviceKey}">`)}
+      ${fField('Дверь / реле', fSelect('c-relay', ['Реле 1','Реле 2','Реле 3','Реле 4'], w.relay))}`;
+  }
+  const testBtn = `<button class="btn outline" onclick="testConnection()">${svg('wifi')}Проверить соединение</button>`;
+  const success = w.tested ? `
+    <div class="banner ok" style="margin-top:14px">
+      <b>${svg('circleCheck')} Соединение успешно</b>Устройство найдено
+      <div class="detail-list" style="margin-top:10px">
+        <div class="detail-row"><span>Модель</span><span>${w.model}</span></div>
+        <div class="detail-row"><span>Серийный номер</span><span>${w.serial}</span></div>
+        <div class="detail-row"><span>Прошивка</span><span>${w.firmware}</span></div>
+      </div>
+    </div>` : '';
+  return `<div class="formgrid">${fields}</div><div style="margin-top:14px">${testBtn}</div>${success}`;
+}
+function grabConnection() {
+  w.name = val('c-name', w.name);
+  w.ip = val('c-ip', w.ip);
+  w.port = val('c-port', w.port);
+  if (w.manufacturer === 'unifi') {
+    w.apiToken = val('c-token', w.apiToken);
+    const el = document.getElementById('c-untrusted'); if (el) w.untrusted = el.checked;
+  } else if (w.manufacturer === 'hikvision') {
+    w.username = val('c-user', w.username);
+    w.password = val('c-pass', w.password);
+    w.doorChannel = val('c-door', w.doorChannel);
+  } else {
+    w.controllerId = val('c-cid', w.controllerId);
+    w.deviceKey = val('c-key', w.deviceKey);
+    w.relay = val('c-relay', w.relay);
+  }
+}
+function testConnection() {
+  grabConnection();
+  const info = DEVTYPE_MODEL[w.deviceType] || DEVTYPE_MODEL.other;
+  w.model = info[0]; w.serial = info[1]; w.firmware = info[2];
+  w.tested = true;
+  render();
+  toast('Соединение установлено');
+}
+
+function stepConfiguration() {
+  return `<div class="formgrid">
+    ${fField('Название двери', fInput('cf-doorname', w.doorName || w.name, 'Главный холл'))}
+    ${fField('Расположение', fInput('cf-loc', w.location, 'Первый этаж'))}
+    ${fField('Часовой пояс', fSelect('cf-tz', DB.wizardConfig.timezones, w.timezone), { full: true })}
+  </div>`;
+}
+function grabConfiguration() {
+  w.doorName = val('cf-doorname', w.doorName);
+  w.location = val('cf-loc', w.location);
+  w.timezone = val('cf-tz', w.timezone);
+}
+
+function stepFinish() {
+  const manuName = w.manufacturer ? DB.wizardConfig.manufacturers.find(m => m.key === w.manufacturer).name : '—';
+  const typeName = w.deviceType ? DB.wizardConfig.deviceTypes.find(t => t.key === w.deviceType).name : '—';
+  return `<div class="detail-list">
+    <div class="detail-row"><span>Тип устройства</span><span>${typeName}</span></div>
+    <div class="detail-row"><span>Производитель</span><span>${manuName}</span></div>
+    <div class="detail-row"><span>Название устройства</span><span>${w.name || 'Безымянное устройство'}</span></div>
+    <div class="detail-row"><span>IP-адрес</span><span>${w.ip || '—'}${w.port ? ':' + w.port : ''}</span></div>
+    <div class="detail-row"><span>Дверь / канал</span><span>${w.doorChannel || w.relay || '—'}</span></div>
+    <div class="detail-row"><span>Дверь</span><span>Ещё не привязана</span></div>
+    <div class="detail-row"><span>Расположение</span><span>${w.location || '—'}</span></div>
+    <div class="detail-row"><span>Часовой пояс</span><span>${w.timezone}</span></div>
+    <div class="detail-row"><span>Модель</span><span>${w.model || '—'}</span></div>
+    <div class="detail-row"><span>Прошивка</span><span>${w.firmware || '—'}</span></div>
+  </div>`;
+}
+
+function stepBody() {
+  if (step === 0) return stepDeviceType();
+  if (step === 1) return stepManufacturer();
+  if (step === 2) return stepConnection();
+  if (step === 3) return stepConfiguration();
+  return stepFinish();
+}
+function val(id, fallback) { const el = document.getElementById(id); return el ? el.value : fallback; }
+
+function nextStep() {
+  if (step === 2) grabConnection();
+  if (step === 3) grabConfiguration();
+  if (step === 4) { createDevice(); return; }
+  step++;
+  render();
+}
+function prevStep() { step--; render(); }
+
+function createDevice() {
+  const typeName = DB.wizardConfig.deviceTypes.find(t => t.key === w.deviceType).name;
+  const id = (w.name || 'device-' + Date.now()).toLowerCase().replace(/\s+/g, '-');
+  DB.devices.unshift({
+    id, name: w.name || 'Безымянное устройство', ip: (w.ip || '0.0.0.0') + (w.port ? ':' + w.port : ''),
+    status: 'Онлайн', type: typeName, model: w.model || '—', serial: w.serial || '—',
+    db: typeName === 'IP-камера' || typeName === 'Домофонная станция' ? '—' : '0 человек · 0 лиц',
+    lastSync: 'Только что', firmware: w.firmware || '1.0.0',
+    cpuPct: 10, storagePct: 5, peopleCount: 0, facesCount: 0, dbCapacity: 10000,
+    pendingChanges: 0, addCount: 0, delCount: 0, syncStatus: 'Синхронизировано', controllerOnline: true, location: w.location || null
+  });
+  toast(`«${w.name || 'Устройство'}» добавлено`);
+  window.location.href = 'devices.html';
+}
+
+function render() {
+  const foot = `
+    ${step > 0 ? `<a class="wback" onclick="prevStep()">Назад</a>` : `<span></span>`}
+    <button class="btn" onclick="nextStep()" ${step === 0 && !w.deviceType ? 'disabled' : ''}>
+      ${step === 0 && w.deviceType === 'camera' ? 'Продолжить с настройкой ONVIF' : (step === 4 ? 'Добавить устройство' : 'Продолжить')}
+    </button>`;
+  const sub = step === 0 && w.deviceType === 'camera'
+    ? 'IP-камеры настраиваются через ONVIF: обнаружение, учётные данные, возможности, потоки.'
+    : 'Пять шагов: тип, производитель, подключение, конфигурация, готово.';
+  document.getElementById('wizard-slot').innerHTML = wizardPage({
+    title: 'Добавить устройство', sub,
+    cancelHref: 'devices.html',
+    stepsHTML: wizardSteps(STEP_LABELS.slice(0, (w.deviceType === 'camera' && step === 0) ? 1 : 5), Math.min(step, (w.deviceType === 'camera' && step === 0) ? 0 : 4)),
+    cardTitle: STEP_LABELS[step],
+    bodyHTML: stepBody(),
+    footHTML: foot
+  });
+  const btn = document.querySelector('.wizardcard-foot .btn');
+  if (btn) btn.onclick = () => { if (step === 0 && w.deviceType === 'camera') { openCameraModal(); } else { nextStep(); } };
+}
+
+/* =========================== Add Camera sub-wizard (modal) =========================== */
+const cam = { method: null, discoveryMode: null, discovered: null, selectedRow: null,
+  ip: '', port: '', endpoint: '', username: '', password: '', authTested: null,
+  caps: { ptz: false, motion: true, audio: false },
+  rtspUrl: '', host: '', rport: '554', path: '', transport: 'TCP (рекомендуется)',
+  httpUrl: '', streamType: 'Автоопределение', selfSigned: false,
+  manuPlatform: '', manuHost: '', manuPort: '443', manuKey: '',
+  nvrPlatform: '', nvrHost: '', nvrPort: '443', nvrHttps: true,
+  customSource: '', customNotes: '',
+  channel: '', camName: '', camLocation: '' };
+
+function resetCam() { Object.assign(cam, { method: null, discoveryMode: null, discovered: null, authTested: null, rtspUrl: '', httpUrl: '', ip: '' }); }
+
+const CAM_METHOD_STEPS = {
+  onvif: ['Способ обнаружения', 'Выбор устройства', 'Аутентификация', 'Возможности', 'Конфигурация', 'Проверка и добавление'],
+  rtsp: ['Подключение', 'Конфигурация', 'Проверка и добавление'],
+  http: ['Подключение', 'Конфигурация', 'Проверка и добавление'],
+  manufacturer: ['Подключение', 'Выбор канала', 'Конфигурация', 'Проверка и добавление'],
+  nvr: ['Подключение', 'Выбор канала', 'Конфигурация', 'Проверка и добавление'],
+  custom: ['Подключение', 'Конфигурация', 'Проверка и добавление']
+};
+let camStep = 0; // index within CAM_METHOD_STEPS[method], -1 means the method chooser screen
+
+function openCameraModal() {
+  resetCam();
+  camStep = -1;
+  renderCam();
+}
+function camBreadcrumb() {
+  const labels = ['Способ подключения'].concat(cam.method ? CAM_METHOD_STEPS[cam.method] : []);
+  const idx = camStep < 0 ? 0 : camStep + 1;
+  return miniSteps(labels, idx);
+}
+function camMockBanner() {
+  return `<div class="banner info">Активна заглушка сервиса камер для разработки интерфейса — результаты симулированы, это не реальные устройства.</div>`;
+}
+function camMethodName() {
+  const m = DB.wizardConfig.cameraConnectionMethods.find(x => x.key === cam.method);
+  return m ? m.name : '';
+}
+
+function camMethodChooser() {
+  const cards = DB.wizardConfig.cameraConnectionMethods.map(m => `
+    <div class="optcard" onclick="pickCamMethod('${m.key}')"><b>${m.name}</b><span>${m.desc}</span></div>`).join('');
+  return `<p class="hint" style="margin:0 0 14px">Выберите, как DoorFlow будет обращаться к камере. Обнаружение, потоковая передача и учётные данные обрабатываются на стороне сервера.</p>
+    ${camMockBanner()}
+    <div class="optgrid">${cards}</div>
+    <div class="modal-foot" style="padding:16px 0 0;border-top:0">
+      <button class="btn outline" onclick="closeModal()">Отмена</button>
+    </div>`;
+}
+function pickCamMethod(key) { cam.method = key; camStep = 0; renderCam(); }
+
+function camStepBody() {
+  const m = cam.method;
+  const label = CAM_METHOD_STEPS[m][camStep];
+  if (m === 'onvif') {
+    if (label === 'Способ обнаружения') return camOnvifDiscoveryMethod();
+    if (label === 'Выбор устройства') return camOnvifSelectDevice();
+    if (label === 'Аутентификация') return camOnvifAuth();
+    if (label === 'Возможности') return camOnvifCaps();
+    if (label === 'Конфигурация') return camConfig();
+    if (label === 'Проверка и добавление') return camReview();
+  }
+  if (m === 'rtsp') {
+    if (label === 'Подключение') return camRtspConnection();
+    if (label === 'Конфигурация') return camConfig();
+    if (label === 'Проверка и добавление') return camReview();
+  }
+  if (m === 'http') {
+    if (label === 'Подключение') return camHttpConnection();
+    if (label === 'Конфигурация') return camConfig();
+    if (label === 'Проверка и добавление') return camReview();
+  }
+  if (m === 'manufacturer') {
+    if (label === 'Подключение') return camManufacturerConnection();
+    if (label === 'Выбор канала') return camChannelSelect();
+    if (label === 'Конфигурация') return camConfig();
+    if (label === 'Проверка и добавление') return camReview();
+  }
+  if (m === 'nvr') {
+    if (label === 'Подключение') return camNvrConnection();
+    if (label === 'Выбор канала') return camChannelSelect();
+    if (label === 'Конфигурация') return camConfig();
+    if (label === 'Проверка и добавление') return camReview();
+  }
+  if (m === 'custom') {
+    if (label === 'Подключение') return camCustomConnection();
+    if (label === 'Конфигурация') return camConfig();
+    if (label === 'Проверка и добавление') return camReview();
+  }
+  return '';
+}
+
+function camOnvifDiscoveryMethod() {
+  return `<div class="optgrid">
+    <div class="optcard ${cam.discoveryMode === 'auto' ? 'sel' : ''}" onclick="setDiscoveryMode('auto')"><b>Автообнаружение</b><span>Сканировать локальную сеть в поисках ONVIF-устройств через фоновый сервис обнаружения.</span></div>
+    <div class="optcard ${cam.discoveryMode === 'manual' ? 'sel' : ''}" onclick="setDiscoveryMode('manual')"><b>Добавить вручную</b><span>Введите IP-адрес или имя хоста и ONVIF-порт самостоятельно. Порт можно оставить «Авто».</span></div>
+  </div>`;
+}
+function setDiscoveryMode(v) { cam.discoveryMode = v; renderCam(); }
+
+function camOnvifSelectDevice() {
+  if (cam.discoveryMode === 'manual') {
+    return `<div class="formgrid">
+      ${fField('IP-адрес / имя хоста', fInput('cam-ip', cam.ip, '192.168.10.41'))}
+      ${fField('ONVIF-порт', fInput('cam-port', cam.port || '80'))}
+      ${fField('ONVIF-эндпоинт (необязательно)', fInput('cam-endpoint', cam.endpoint, 'http://192.168.10.41/onvif/device_service'), { full: true })}
+    </div>
+    <p class="hint">Нужен только если у устройства нестандартный путь сервиса.</p>`;
+  }
+  if (!cam.discovered) {
+    return `<p class="hint">Нажмите «Сканировать», чтобы найти ONVIF-устройства в локальной сети.</p>
+      <button class="btn outline" onclick="runDiscovery()">${svg('refresh')}Сканировать сеть</button>`;
+  }
+  const rows = cam.discovered;
+  return `<div class="tblwrap" style="margin-bottom:14px"><table class="dt">
+    <thead><tr><th></th><th>Производитель</th><th>Модель</th><th>IP / хост</th><th>Серийный №</th></tr></thead>
+    <tbody>${rows.map((r, i) => `<tr onclick="selectDiscovered(${i})" style="cursor:pointer;${cam.selectedRow === i ? 'background:var(--brand-soft)' : ''}">
+      <td>${cam.selectedRow === i ? svg('circleCheck') : ''}</td><td>${r.manufacturer}</td><td>${r.model}</td><td class="mono">${r.ip}</td><td class="mono">${r.serial || '—'}</td></tr>`).join('')}
+    </tbody></table></div>
+    <button class="btn outline" onclick="runDiscovery()">${svg('refresh')}Обновить сканирование</button>`;
+}
+function runDiscovery() {
+  cam.discovered = [
+    { manufacturer: 'Hikvision', model: 'DS-2CD2386G2', ip: '192.168.10.41', serial: 'DS2CD2386G220' },
+    { manufacturer: 'Неизвестный производитель', model: 'ONVIF-камера', ip: '192.168.10.57', serial: '—' },
+    { manufacturer: 'Hanwha Vision', model: 'XNV-C8083R', ip: '192.168.10.63', serial: '—' }
+  ];
+  renderCam();
+}
+function selectDiscovered(i) { cam.selectedRow = i; cam.ip = cam.discovered[i].ip; renderCam(); }
+
+function camOnvifAuth() {
+  const endpoint = cam.endpoint || `http://${cam.ip}/onvif/device_service`;
+  return `<div class="panel" style="padding:14px 16px;margin-bottom:14px;background:var(--panel-2)">
+    <div style="font:700 11px var(--font-mono);color:var(--muted);text-transform:uppercase;margin-bottom:6px">Камера обнаружена</div>
+    <div class="formgrid">
+      <div><div class="hint">IP-адрес</div><b>${cam.ip || '—'}</b></div>
+      <div><div class="hint">ONVIF-эндпоинт</div><b class="mono" style="font-size:11px">${endpoint}</b></div>
+    </div>
+  </div>
+  <div class="formgrid">
+    ${fField('Имя пользователя', fInput('cam-user', cam.username))}
+    ${fField('Пароль', `<input id="cam-pass" type="password" value="${cam.password}">`)}
+  </div>
+  <p class="hint">Учётные данные отправляются только на шлюз — никогда не хранятся в браузере.</p>
+  <button class="btn outline" onclick="testCamAuth()">${svg('wifi')}Проверить соединение</button>
+  ${cam.authTested === 'bad' ? `<div class="banner bad" style="margin-top:14px"><b>Неверное имя пользователя или пароль</b>
+    <div class="retry"><button onclick="testCamAuth()">Повторить</button><a class="techlink" onclick="toast('Код ошибки: ONVIF_AUTH_401')">Технические детали</a></div></div>` : ''}
+  ${cam.authTested === 'ok' ? `<div class="banner ok" style="margin-top:14px"><b>${svg('circleCheck')} Соединение подтверждено</b></div>` : ''}`;
+}
+function testCamAuth() {
+  cam.username = val('cam-user', cam.username);
+  cam.password = val('cam-pass', cam.password);
+  cam.authTested = (cam.username && cam.password) ? 'ok' : 'bad';
+  renderCam();
+}
+function camOnvifCaps() {
+  return `<p class="hint" style="margin:0 0 12px">Возможности определены автоматически через ONVIF. Отключите то, что не нужно использовать.</p>
+    <div class="detail-list">
+      <label class="detail-row" style="cursor:pointer"><span>PTZ-управление</span><input type="checkbox" id="cap-ptz" ${cam.caps.ptz ? 'checked' : ''}></label>
+      <label class="detail-row" style="cursor:pointer"><span>Обнаружение движения</span><input type="checkbox" id="cap-motion" ${cam.caps.motion ? 'checked' : ''}></label>
+      <label class="detail-row" style="cursor:pointer"><span>Двусторонняя аудиосвязь</span><input type="checkbox" id="cap-audio" ${cam.caps.audio ? 'checked' : ''}></label>
+    </div>`;
+}
+function grabCaps() {
+  const p = document.getElementById('cap-ptz'), m = document.getElementById('cap-motion'), a = document.getElementById('cap-audio');
+  if (p) cam.caps.ptz = p.checked; if (m) cam.caps.motion = m.checked; if (a) cam.caps.audio = a.checked;
+}
+
+function camRtspConnection() {
+  return `${fField('RTSP URL', fInput('cam-rtsp', cam.rtspUrl, 'rtsp://192.168.10.41:554/stream1'), { full: true })}
+    <p class="hint" style="margin:-6px 0 12px">Пример: rtsp://192.168.10.41:554/Streaming/Channels/101. Оставьте пустым, чтобы использовать хост и путь ниже.</p>
+    <div class="formgrid">
+      ${fField('Хост / IP', fInput('cam-host', cam.host, '192.168.10.41'))}
+      ${fField('Порт', fInput('cam-rport', cam.rport))}
+      ${fField('Путь потока', fInput('cam-path', cam.path, '/Streaming/Channels/101'))}
+      ${fField('Транспорт', fSelect('cam-transport', ['TCP (рекомендуется)', 'UDP'], cam.transport))}
+      ${fField('Имя пользователя (необязательно)', fInput('cam-user', cam.username))}
+      ${fField('Пароль (необязательно)', `<input id="cam-pass" type="password" value="${cam.password}">`)}
+    </div>
+    <button class="btn outline" style="margin-top:12px" onclick="toast('Соединение установлено')">${svg('wifi')}Проверить соединение</button>`;
+}
+function camHttpConnection() {
+  return `${fField('URL потока', fInput('cam-httpurl', cam.httpUrl, 'https://camera.local/live/index.m3u8'), { full: true })}
+    <p class="hint" style="margin:-6px 0 12px">HLS-манифест, MJPEG-эндпоинт, снэпшот или WebRTC signalling URL.</p>
+    <div class="formgrid">
+      ${fField('Тип потока', fSelect('cam-stype', ['Автоопределение', 'HLS', 'MJPEG', 'Снимок', 'WebRTC'], cam.streamType))}
+      ${fField('', `<label style="display:flex;gap:8px;align-items:center;margin-top:9px"><input type="checkbox" id="cam-selfsigned" ${cam.selfSigned ? 'checked' : ''}> Разрешить самоподписанный TLS-сертификат</label>`)}
+      ${fField('Имя пользователя (необязательно)', fInput('cam-user', cam.username))}
+      ${fField('Пароль (необязательно)', `<input id="cam-pass" type="password" value="${cam.password}">`)}
+    </div>
+    <button class="btn outline" style="margin-top:12px" onclick="toast('Соединение установлено')">${svg('wifi')}Проверить соединение</button>`;
+}
+function camManufacturerConnection() {
+  return `<div class="formgrid">
+    ${fField('Производитель', fSelect('cam-platform', ['Выберите платформу', 'Hikvision', 'Dahua', 'Axis', 'Hanwha', 'UniFi Protect'], cam.manuPlatform || 'Выберите платформу'))}
+    ${fField('Хост / IP', fInput('cam-mhost', cam.manuHost, '192.168.10.10'))}
+    ${fField('API-порт', fInput('cam-mport', cam.manuPort))}
+    ${fField('API-ключ / токен (необязательно)', fInput('cam-mkey', cam.manuKey))}
+    ${fField('Имя пользователя (необязательно)', fInput('cam-user', cam.username))}
+    ${fField('Пароль (необязательно)', `<input id="cam-pass" type="password" value="${cam.password}">`)}
+  </div>
+  <button class="btn outline" style="margin-top:12px" onclick="toast('Соединение установлено')">${svg('wifi')}Проверить соединение</button>`;
+}
+function camNvrConnection() {
+  return `<div class="formgrid">
+    ${fField('Платформа', fSelect('cam-nvrplatform', ['Выберите видеорегистратор / VMS', 'Hikvision NVR', 'Dahua NVR', 'Milestone', 'Genetec'], cam.nvrPlatform || 'Выберите видеорегистратор / VMS'))}
+    ${fField('Хост / IP', fInput('cam-nvrhost', cam.nvrHost, '192.168.10.5'))}
+    ${fField('Порт', fInput('cam-nvrport', cam.nvrPort))}
+    ${fField('', `<label style="display:flex;gap:8px;align-items:center;margin-top:9px"><input type="checkbox" id="cam-https" ${cam.nvrHttps ? 'checked' : ''}> Использовать HTTPS</label>`)}
+    ${fField('Имя пользователя (необязательно)', fInput('cam-user', cam.username))}
+    ${fField('Пароль (необязательно)', `<input id="cam-pass" type="password" value="${cam.password}">`)}
+  </div>
+  <button class="btn outline" style="margin-top:12px" onclick="toast('Соединение установлено')">${svg('wifi')}Проверить соединение</button>`;
+}
+function camCustomConnection() {
+  return `${fField('Источник', fInput('cam-source', cam.customSource, 'srt://192.168.10.80:9000?streamid=cam1'), { full: true })}
+    <p class="hint" style="margin:-6px 0 12px">Любой источник, который может открыть Device Gateway — RTSP, RTMP, SRT, HTTP, файл или pipeline-строка.</p>
+    ${fField('Заметки (необязательно)', fTextarea('cam-notes', cam.customNotes), { full: true })}
+    <div class="formgrid" style="margin-top:12px">
+      ${fField('Имя пользователя (необязательно)', fInput('cam-user', cam.username))}
+      ${fField('Пароль (необязательно)', `<input id="cam-pass" type="password" value="${cam.password}">`)}
+    </div>
+    <button class="btn outline" style="margin-top:12px" onclick="toast('Соединение установлено')">${svg('wifi')}Проверить соединение</button>`;
+}
+function camChannelSelect() {
+  const opts = ['Канал 1 — Главный вход', 'Канал 2 — Паркинг', 'Канал 3 — Двор', 'Канал 4 — Погрузочная площадка'];
+  return `${fField('Канал', fSelect('cam-channel', opts, cam.channel || opts[0]), { full: true })}
+    <p class="hint">Каналы считываются с выбранной платформы после установления соединения.</p>`;
+}
+function camConfig() {
+  return `<div class="formgrid">
+    ${fField('Название камеры', fInput('cam-name', cam.camName, 'Камера — Главный холл'))}
+    ${fField('Расположение', fInput('cam-loc', cam.camLocation, 'Первый этаж'))}
+  </div>`;
+}
+function camReview() {
+  const methodName = camMethodName();
+  return `<div class="detail-list">
+    <div class="detail-row"><span>Способ подключения</span><span>${methodName}</span></div>
+    <div class="detail-row"><span>Название камеры</span><span>${cam.camName || 'Без названия'}</span></div>
+    <div class="detail-row"><span>Расположение</span><span>${cam.camLocation || '—'}</span></div>
+    <div class="detail-row"><span>Источник / IP</span><span>${camSourceSummary()}</span></div>
+  </div>`;
+}
+function camSourceSummary() {
+  if (cam.method === 'onvif') return cam.ip || '—';
+  if (cam.method === 'rtsp') return cam.rtspUrl || (cam.host ? `${cam.host}:${cam.rport}${cam.path}` : '—');
+  if (cam.method === 'http') return cam.httpUrl || '—';
+  if (cam.method === 'manufacturer') return cam.manuHost || '—';
+  if (cam.method === 'nvr') return cam.nvrHost || '—';
+  if (cam.method === 'custom') return cam.customSource || '—';
+  return '—';
+}
+
+function grabCamStep() {
+  const label = CAM_METHOD_STEPS[cam.method][camStep];
+  if (label === 'Выбор устройства' && cam.discoveryMode === 'manual') {
+    cam.ip = val('cam-ip', cam.ip); cam.port = val('cam-port', cam.port); cam.endpoint = val('cam-endpoint', cam.endpoint);
+  }
+  if (label === 'Возможности') grabCaps();
+  if (label === 'Подключение') {
+    if (cam.method === 'rtsp') { cam.rtspUrl = val('cam-rtsp', cam.rtspUrl); cam.host = val('cam-host', cam.host); cam.rport = val('cam-rport', cam.rport); cam.path = val('cam-path', cam.path); cam.transport = val('cam-transport', cam.transport); cam.username = val('cam-user', cam.username); cam.password = val('cam-pass', cam.password); }
+    if (cam.method === 'http') { cam.httpUrl = val('cam-httpurl', cam.httpUrl); cam.streamType = val('cam-stype', cam.streamType); const el = document.getElementById('cam-selfsigned'); if (el) cam.selfSigned = el.checked; cam.username = val('cam-user', cam.username); cam.password = val('cam-pass', cam.password); }
+    if (cam.method === 'manufacturer') { cam.manuPlatform = val('cam-platform', cam.manuPlatform); cam.manuHost = val('cam-mhost', cam.manuHost); cam.manuPort = val('cam-mport', cam.manuPort); cam.manuKey = val('cam-mkey', cam.manuKey); cam.username = val('cam-user', cam.username); cam.password = val('cam-pass', cam.password); }
+    if (cam.method === 'nvr') { cam.nvrPlatform = val('cam-nvrplatform', cam.nvrPlatform); cam.nvrHost = val('cam-nvrhost', cam.nvrHost); cam.nvrPort = val('cam-nvrport', cam.nvrPort); const el = document.getElementById('cam-https'); if (el) cam.nvrHttps = el.checked; cam.username = val('cam-user', cam.username); cam.password = val('cam-pass', cam.password); }
+    if (cam.method === 'custom') { cam.customSource = val('cam-source', cam.customSource); cam.customNotes = val('cam-notes', cam.customNotes); cam.username = val('cam-user', cam.username); cam.password = val('cam-pass', cam.password); }
+  }
+  if (label === 'Выбор канала') cam.channel = val('cam-channel', cam.channel);
+  if (label === 'Конфигурация') { cam.camName = val('cam-name', cam.camName); cam.camLocation = val('cam-loc', cam.camLocation); }
+}
+
+function camNext() {
+  const total = CAM_METHOD_STEPS[cam.method].length;
+  grabCamStep();
+  if (camStep === total - 1) { addCameraDevice(); return; }
+  camStep++;
+  renderCam();
+}
+function camBack() {
+  if (camStep === 0) { cam.method = null; camStep = -1; } else { camStep--; }
+  renderCam();
+}
+function addCameraDevice() {
+  const id = (cam.camName || 'camera-' + Date.now()).toLowerCase().replace(/\s+/g, '-');
+  DB.devices.unshift({
+    id, name: cam.camName || 'Безымянная камера', ip: cam.ip || cam.host || cam.manuHost || cam.nvrHost || '—',
+    status: 'Онлайн', type: 'IP-камера', model: 'VX-CAM-4K', serial: 'CAM' + Math.floor(Math.random() * 900000 + 100000),
+    db: '—', lastSync: 'Только что', firmware: '2.1.4',
+    cpuPct: 8, storagePct: 12, peopleCount: null, facesCount: null, dbCapacity: null,
+    pendingChanges: 0, addCount: 0, delCount: 0, syncStatus: 'Синхронизировано', controllerOnline: true, location: cam.camLocation || null
+  });
+  closeModal();
+  toast(`«${cam.camName || 'Камера'}» добавлена`);
+  window.location.href = 'devices.html';
+}
+
+function renderCam() {
+  const title = cam.method ? `Добавить камеру — ${camMethodName()}` : 'Добавить камеру';
+  const body = camStep < 0 ? camMethodChooser() : `
+    ${camBreadcrumb()}
+    ${camMockBanner()}
+    ${camStepBody()}
+    <div class="modal-foot" style="padding:16px 0 0;border-top:0">
+      <a class="wback" onclick="camBack()">${svg('arrowRight')} Назад</a>
+      <button class="btn" style="margin-left:auto" onclick="camNext()">${camStep === CAM_METHOD_STEPS[cam.method].length - 1 ? 'Добавить камеру' : 'Продолжить'}</button>
+    </div>`;
+  openModal(title, body, { wide: true });
+}
+
+renderShell('devices', `<div id="wizard-slot"></div>`);
+render();
+</script>
+</body>
+</html>

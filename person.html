@@ -1,0 +1,321 @@
+<!DOCTYPE html>
+<html lang="ru">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Человек — DoorFlow</title>
+<link rel="stylesheet" href="assets/fonts.css">
+<link rel="stylesheet" href="assets/styles.css">
+</head>
+<body>
+<script src="assets/db.js"></script>
+<script src="assets/app.js"></script>
+<script>
+const DB = window.VDX_DB;
+const personId = qs('id');
+const person = DB.people.find(p => p.id === personId) || DB.people[0];
+let activeTab = 'Обзор';
+const TABS = ['Обзор', 'Учётные данные', 'Доступ', 'Активность', 'Устройства'];
+
+function headBadges(p) {
+  const cls = tagClass(p.status);
+  return `<span class="tag ${cls}">${p.status}</span>${p.faceEnrolled ? `<span class="tag ok">Лицо зарегистрировано</span>` : `<span class="tag warn">Лицо не зарегистрировано</span>`}`;
+}
+
+function panelOverview(p) {
+  return `<div class="grid2">
+    <div class="panel">
+      <div class="panel-head"><div><h2>Контактная информация</h2></div></div>
+      <div class="detail-list" style="padding:16px 18px">
+        <div class="detail-row"><span>Email</span><span>${p.email || '—'}</span></div>
+        <div class="detail-row"><span>Телефон</span><span>${p.phone || '—'}</span></div>
+        <div class="detail-row"><span>Квартира / отдел</span><span>${p.unit || '—'}</span></div>
+        <div class="detail-row"><span>Статус</span><span><span class="tag ${tagClass(p.status)}">${p.status}</span></span></div>
+        <div class="detail-row"><span>Срок действия</span><span>${p.expiration || 'Без срока'}</span></div>
+        <div class="detail-row"><span>Заметки</span><span>${p.notes || '—'}</span></div>
+        <div class="detail-row"><span>Доступ в приложение</span><span>${p.appAccess && p.appAccess.enabled ? `${p.appAccess.role} · ${p.appAccess.login}` : '—'}</span></div>
+      </div>
+    </div>
+    <div class="facepanel">
+      <span class="person" style="margin:0 auto 12px">${p.initials}</span>
+      ${p.faceEnrolled ? `
+        <h4>Лицо зарегистрировано</h4>
+        <div class="fp-meta">Качество: ${p.faceQuality}<br>Зарегистрировано ${p.faceEnrolledDate}</div>
+        <div class="fp-actions">
+          <button class="btn" onclick="openFaceModal()">${svg('scanFace')}Заменить лицо</button>
+          <button class="btn outline" onclick="removeFace()">${svg('trash')}Удалить</button>
+        </div>` : `
+        <h4>Лицо не зарегистрировано</h4>
+        <div class="fp-meta">Добавьте фото, чтобы включить распознавание лица.</div>
+        <div class="fp-actions">
+          <button class="btn" onclick="openFaceModal()">${svg('scanFace')}Зарегистрировать лицо</button>
+        </div>`}
+    </div>
+  </div>`;
+}
+
+function credIcon(type) {
+  if (type === 'Мобильное') return 'phone';
+  if (type === 'Лицо') return 'scanFace';
+  return 'key';
+}
+function panelCredentials(p) {
+  return `<div class="panel">
+    <div class="panel-head"><div><h2>Учётные данные</h2><p>Карты, PIN-коды и другие способы входа.</p></div>
+      <button class="btn outline" onclick="openAddCredential()">${svg('plus')}Добавить учётные данные</button></div>
+    <div class="rows">
+      ${(p.credentials || []).map(c => `<div class="row">
+        <span class="person">${svg(credIcon(c.type))}</span>
+        <div class="info"><div class="name">${c.label || c.type}</div>
+          <div class="meta"><i>${c.number ? c.number + (c.facilityCode ? ' · Код объекта ' + c.facilityCode : '') : (c.device || c.type)}</i></div></div>
+        <div class="result" style="display:flex;align-items:center;gap:10px">
+          <span class="tag ${c.status === 'Активна' ? 'ok' : 'warn'}">${c.status === 'Активна' ? 'Активна' : 'Отключена'}</span>
+          <a onclick="toggleCredential('${c.id}')">${c.status === 'Активна' ? 'Отключить' : 'Включить'}</a>
+          <a class="danger" style="color:var(--red)" onclick="deleteCredential('${c.id}')">${svg('trash')}</a>
+        </div>
+      </div>`).join('') || emptyState('Учётных данных нет.')}
+    </div>
+  </div>`;
+}
+function credTypeFields(type) {
+  if (type === 'Карта') return `
+    ${fField('Номер карты', fInput('nc-number', ''))}
+    ${fField('Код объекта (необязательно)', fInput('nc-facility', '', 'например, 112'))}
+    ${fField('Метка (необязательно)', fInput('nc-label', '', 'Карта доступа'), { full: true })}`;
+  if (type === 'Мобильное') return `${fField('Устройство', fInput('nc-device', '', 'iphone-15-pro'), { full: true })}`;
+  if (type === 'Лицо') return `<p class="hint">Лицо регистрируется отдельно на вкладке «Обзор».</p>`;
+  return `${fField('Метка (необязательно)', fInput('nc-label', '', `${type}`), { full: true })}`;
+}
+function openAddCredential() {
+  openModal('Добавить учётные данные', `
+    <p class="desc">Выпустите карту, PIN-код, мобильный доступ, распознавание лица или номер авто.</p>
+    ${fField('Тип учётных данных', fSelectOnChange('nc-type', DB.wizardConfig.credentialTypes, 'Карта', 'setCredType'), { full: true })}
+    <div id="nc-fields">${credTypeFields('Карта')}</div>
+  `);
+  document.getElementById('modal-root').querySelector('.modal').insertAdjacentHTML('beforeend', modalFooter(`
+    <button class="btn outline" onclick="closeModal()">Отмена</button>
+    <button class="btn" onclick="saveAddCredential()">Добавить учётные данные</button>
+  `));
+}
+function setCredType(v) {
+  document.getElementById('nc-fields').innerHTML = credTypeFields(v);
+}
+function saveAddCredential() {
+  const type = document.getElementById('nc-type').value;
+  const id = 'cred-' + Date.now();
+  const number = document.getElementById('nc-number') ? document.getElementById('nc-number').value : '';
+  const facility = document.getElementById('nc-facility') ? document.getElementById('nc-facility').value : '';
+  const device = document.getElementById('nc-device') ? document.getElementById('nc-device').value : '';
+  const labelEl = document.getElementById('nc-label');
+  const label = labelEl ? labelEl.value : '';
+  person.credentials = person.credentials || [];
+  person.credentials.push({ id, type, label: label || type, number: number || undefined, facilityCode: facility || undefined, device: device || undefined, status: 'Активна' });
+  closeModal();
+  renderTab();
+  toast('Учётные данные добавлены');
+}
+function toggleCredential(id) {
+  const c = (person.credentials || []).find(x => x.id === id);
+  if (!c) return;
+  c.status = c.status === 'Активна' ? 'Отключена' : 'Активна';
+  renderTab();
+}
+function deleteCredential(id) {
+  person.credentials = (person.credentials || []).filter(x => x.id !== id);
+  renderTab();
+  toast('Учётные данные удалены');
+}
+
+function panelAccess(p) {
+  const g = DB.accessGroups.find(x => x.name === p.accessGroup);
+  return `<div class="grid2">
+    <div class="panel">
+      <div class="panel-head"><div><h2>Группа доступа</h2></div><button class="btn outline" onclick="openChangeAccess()">Изменить доступ</button></div>
+      <div class="detail-list" style="padding:16px 18px">
+        <div class="detail-row"><span>Группа доступа</span><span>${p.accessGroup}</span></div>
+        <div class="detail-row"><span>Расписание</span><span>${g ? g.schedule : '—'}</span></div>
+        <div class="detail-row"><span>Поведение при истечении</span><span>${g ? g.expirationBehavior : '—'}</span></div>
+      </div>
+    </div>
+    <div class="panel">
+      <div class="panel-head"><div><h2>Разрешённые двери</h2></div></div>
+      <div style="padding:16px 18px" class="doorchips">
+        ${(g ? g.doors : []).map(d => `<span class="doorchip"><span class="dchip-dot"></span>${d}</span>`).join('') || emptyState('Двери не назначены.')}
+      </div>
+    </div>
+  </div>`;
+}
+function openChangeAccess() {
+  openModal('Изменить доступ', `
+    ${fField('Группа доступа', fSelect('ca-group', DB.accessGroups.map(g => g.name), person.accessGroup), { full: true })}
+  `);
+  document.getElementById('modal-root').querySelector('.modal').insertAdjacentHTML('beforeend', modalFooter(`
+    <button class="btn outline" onclick="closeModal()">Отмена</button>
+    <button class="btn" onclick="saveChangeAccess()">Сохранить</button>
+  `));
+}
+function saveChangeAccess() {
+  person.accessGroup = document.getElementById('ca-group').value;
+  closeModal();
+  renderTab();
+  toast('Группа доступа изменена');
+}
+
+function panelActivity() {
+  const rows = DB.events;
+  return `<div class="panel">
+    <div class="panel-head"><div><h2>Recent Activity</h2></div></div>
+    <div class="rows">
+      ${rows.map(e => `<div class="row"><span class="person ${tagClass(e.result)}">${e.initials}</span>
+        <div class="info"><div class="name">${e.person}<span>${e.unit || ''}</span></div>
+        <div class="meta"><i>${e.door}</i><i>${e.credential}</i>${e.confidence ? `<i>Confidence ${e.confidence}%</i>` : ''}</div></div>
+        <div class="result"><span class="tag ${tagClass(e.result)}">${e.result}</span><span class="time">${e.time}</span></div></div>`).join('')}
+    </div>
+  </div>`;
+}
+
+function panelDevices() {
+  const readers = DB.devices.filter(d => d.type === 'Терминал распознавания лиц');
+  return `<div class="panel">
+    <div class="panel-head"><div><h2>Устройства</h2><p>Считыватели, куда синхронизировано это лицо.</p></div>
+      <button class="btn outline" onclick="toast('Синхронизация запущена')">${svg('refresh')}Синхронизировать</button></div>
+    <div class="rows">
+      ${readers.map(d => `<div class="row device"><div class="left"><span class="person">${svg('scanFace')}</span>
+        <div class="info"><div class="name">${d.name}</div><div class="meta"><i>${d.ip}</i></div></div></div>
+        <span class="tag ${tagClass(d.status)}">${d.status}</span></div>`).join('')}
+    </div>
+  </div>`;
+}
+
+function renderTab() {
+  const slot = document.getElementById('tab-slot');
+  if (activeTab === 'Обзор') slot.innerHTML = panelOverview(person);
+  else if (activeTab === 'Учётные данные') slot.innerHTML = panelCredentials(person);
+  else if (activeTab === 'Доступ') slot.innerHTML = panelAccess(person);
+  else if (activeTab === 'Активность') slot.innerHTML = panelActivity();
+  else slot.innerHTML = panelDevices();
+}
+function setTab(t) { activeTab = t; document.getElementById('tabs-slot').innerHTML = tabsBar(TABS, activeTab, 'setTab'); renderTab(); }
+
+function openFaceModal() {
+  openModal('Регистрация лица', `
+    <p class="desc">Сделайте фото камерой или загрузите изображение с этого компьютера.</p>
+    <div class="dz-photo" id="face-preview">Фото ещё нет</div>
+    <div class="dz-actions">
+      <button class="btn outline" onclick="fakeCapture()">${svg('camera')}Использовать камеру</button>
+      <button class="btn outline" onclick="fakeCapture()">${svg('upload')}Загрузить фото</button>
+    </div>
+    <p class="hint" style="margin-top:12px">Лицо регистрируется как биометрический шаблон на связанных терминалах распознавания.</p>
+  `);
+  document.getElementById('modal-root').querySelector('.modal').insertAdjacentHTML('beforeend', modalFooter(`
+    <button class="btn outline" onclick="closeModal()">Отмена</button>
+    <button class="btn" onclick="saveFace()">Сохранить лицо</button>
+  `));
+}
+function fakeCapture() {
+  document.getElementById('face-preview').textContent = 'Предпросмотр фото готов';
+  document.getElementById('face-preview').classList.add('dropzone', 'ok');
+}
+function saveFace() {
+  person.faceEnrolled = true;
+  person.faceQuality = 'Хорошее';
+  person.faceEnrolledDate = 'Только что';
+  closeModal();
+  renderHead();
+  renderTab();
+  toast('Лицо зарегистрировано');
+}
+function removeFace() {
+  person.faceEnrolled = false;
+  person.faceQuality = null;
+  person.faceEnrolledDate = null;
+  renderHead();
+  renderTab();
+  toast('Лицо удалено');
+}
+
+function openEditPerson() {
+  openModal('Изменить человека', `
+    <p class="desc">Обновите контактные данные, тип и статус.</p>
+    <div class="formgrid">
+      ${fField('Имя', fInput('ep-first', person.firstName || person.name))}
+      ${fField('Фамилия', fInput('ep-last', person.lastName || ''))}
+      ${fField('Тип', fSelect('ep-type', DB.wizardConfig.personTypes, person.type))}
+      ${fField('Статус', fSelect('ep-status', ['Активен','Ожидает синхр.','Заблокирован','Истёк'], person.status))}
+      ${fField('Квартира / отдел', fInput('ep-unit', person.unit))}
+      ${fField('Срок действия', fInput('ep-exp', person.expiration || '', 'Например, 31 дек 2026'))}
+      ${fField('Email', fInput('ep-email', person.email || ''))}
+      ${fField('Телефон', fInput('ep-phone', person.phone || ''))}
+    </div>
+    ${fField('Заметки', fTextarea('ep-notes', person.notes || ''), { full: true })}
+    <label class="banner info" style="display:flex;gap:10px;align-items:flex-start;cursor:pointer;margin-top:14px">
+      <input type="checkbox" id="ep-app" style="margin-top:2px" ${person.appAccess && person.appAccess.enabled ? 'checked' : ''}>
+      <span><b>Доступ в приложение</b>Разрешить этому человеку входить в DoorFlow с ролью.</span>
+    </label>
+    <div class="formgrid" style="margin-top:14px">
+      ${fField('Логин', fInput('ep-login', (person.appAccess && person.appAccess.login) || ''))}
+      ${fField('Новый пароль (необязательно)', `<input id="ep-pass" type="password">`)}
+      ${fField('Роль', fSelect('ep-role', ['Администратор','Менеджер','Оператор'], (person.appAccess && person.appAccess.role) || 'Администратор'), { full: true })}
+    </div>
+  `, { wide: true });
+  document.getElementById('modal-root').querySelector('.modal').insertAdjacentHTML('beforeend', modalFooter(`
+    <button class="btn outline" onclick="closeModal()">Отмена</button>
+    <button class="btn" onclick="saveEditPerson()">Сохранить изменения</button>
+  `));
+}
+function saveEditPerson() {
+  person.firstName = document.getElementById('ep-first').value;
+  person.lastName = document.getElementById('ep-last').value;
+  person.name = `${person.firstName} ${person.lastName}`.trim();
+  person.initials = initialsOf(person.name);
+  person.type = document.getElementById('ep-type').value;
+  person.status = document.getElementById('ep-status').value;
+  person.unit = document.getElementById('ep-unit').value;
+  person.expiration = document.getElementById('ep-exp').value || null;
+  person.email = document.getElementById('ep-email').value;
+  person.phone = document.getElementById('ep-phone').value;
+  person.notes = document.getElementById('ep-notes').value || null;
+  const appOn = document.getElementById('ep-app').checked;
+  person.appAccess = { enabled: appOn, login: appOn ? document.getElementById('ep-login').value : null, role: appOn ? document.getElementById('ep-role').value : null };
+  person.role = appOn ? person.appAccess.role : null;
+  closeModal();
+  renderHead();
+  renderTab();
+  toast('Изменения сохранены');
+}
+function deletePersonAndBack() {
+  const idx = DB.people.findIndex(x => x.id === person.id);
+  if (idx > -1) DB.people.splice(idx, 1);
+  toast(`${person.name} удалён(а)`);
+  window.location.href = 'people.html';
+}
+function syncToDevices() { toast('Отправлено на синхронизацию с устройствами'); }
+
+function renderHead() {
+  document.getElementById('head-slot').innerHTML = `
+  <a class="backlink" href="people.html">${svg('arrowRight')} Люди</a>
+  <div class="dhead">
+    <div class="dhead-id">
+      <span class="person">${person.initials}</span>
+      <div>
+        <h1>${person.name}</h1>
+        <p>${person.type}${person.unit ? ' · ' + person.unit : ''}</p>
+        <div class="dhead-badges">${headBadges(person)}</div>
+      </div>
+    </div>
+    <div class="dhead-actions">
+      <button class="btn outline" onclick="openEditPerson()">${svg('penLine')}Изменить человека</button>
+      <button class="btn danger" onclick="deletePersonAndBack()">${svg('trash')}Удалить человека</button>
+      <button class="btn" onclick="syncToDevices()">${svg('refresh')}Синхронизировать с устройствами</button>
+    </div>
+  </div>`;
+}
+
+const content = `<div id="head-slot"></div><div id="tabs-slot"></div><div id="tab-slot"></div>`;
+renderShell('people', content);
+renderHead();
+document.getElementById('tabs-slot').innerHTML = tabsBar(TABS, activeTab, 'setTab');
+renderTab();
+</script>
+</body>
+</html>

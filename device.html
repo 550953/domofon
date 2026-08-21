@@ -1,0 +1,121 @@
+<!DOCTYPE html>
+<html lang="ru">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Устройство — DoorFlow</title>
+<link rel="stylesheet" href="assets/fonts.css">
+<link rel="stylesheet" href="assets/styles.css">
+</head>
+<body>
+<script src="assets/db.js"></script>
+<script src="assets/app.js"></script>
+<script>
+const DB = window.VDX_DB;
+const devId = qs('id');
+const dev = DB.devices.find(d => d.id === devId) || DB.devices[0];
+
+function renderHead() {
+  const cls = tagClass(dev.status);
+  document.getElementById('head-slot').innerHTML = `
+  <a class="backlink" href="devices.html">${svg('arrowRight')} Устройства</a>
+  <div class="dhead">
+    <div class="dhead-id">
+      <div>
+        <h1>${dev.name}</h1>
+        <p>IP: ${dev.ip}${dev.location ? ' · ' + dev.location : ''}</p>
+        <div class="dhead-badges">
+          <span class="tag ${cls}">${dev.status}</span>
+          <span class="tag ${dev.syncStatus === 'Синхронизировано' ? 'ok' : (dev.syncStatus === 'Устройство офлайн' ? 'bad' : 'warn')}">${dev.syncStatus}</span>
+        </div>
+      </div>
+    </div>
+    <div class="dhead-actions">
+      <button class="btn" onclick="syncNow()">${svg('refresh')}Синхронизировать</button>
+      <button class="btn outline" onclick="toast('Команда «Открыть дверь» отправлена')">${svg('doorOpen2')}Открыть дверь</button>
+      <button class="btn outline" onclick="restartDevice()">${svg('refresh')}Перезагрузить устройство</button>
+      <button class="btn danger" onclick="deleteDeviceAndBack()">${svg('trash')}Удалить устройство</button>
+    </div>
+  </div>`;
+}
+
+function renderStats() {
+  document.getElementById('stats-slot').innerHTML = statRow([
+    { icon: 'wifi', label: 'Статус устройства', value: dev.status },
+    { icon: 'database', label: 'Хранилище', value: dev.storagePct + '%' },
+    { icon: 'server', label: 'ЦП', value: dev.cpuPct + '%' },
+    { icon: 'clock', label: 'Последняя синхр.', value: dev.lastSync }
+  ]);
+}
+
+function bar(label, value, cap) {
+  const pct = cap ? Math.min(100, Math.round((value / cap) * 100)) : value;
+  return `<div class="plabel"><span>${label}</span><b>${cap ? `${value} / ${cap}` : pct + '%'}</b></div><div class="progress"><i style="width:${pct}%"></i></div>`;
+}
+
+function renderBody() {
+  const hasDb = dev.peopleCount !== null && dev.peopleCount !== undefined;
+  document.getElementById('body-slot').innerHTML = `
+  <div class="grid2">
+    <div class="panel">
+      <div class="panel-head"><div><h2>Использование базы данных</h2></div></div>
+      <div style="padding:16px 18px">
+        ${hasDb ? `
+        ${bar('Люди', dev.peopleCount, dev.dbCapacity)}
+        ${bar('Лица', dev.facesCount, dev.dbCapacity)}
+        ${bar('Хранилище', dev.storagePct)}` : `${bar('Хранилище', dev.storagePct)}<p class="hint" style="margin-top:10px">Это устройство не хранит базу людей/лиц локально.</p>`}
+      </div>
+    </div>
+    <div class="panel">
+      <div class="panel-head"><div><h2>Синхронизация устройства</h2><p>Хранит людей и лица в собственной памяти терминала.</p></div></div>
+      <div class="detail-list" style="padding:16px 18px">
+        <div class="detail-row"><span>Статус</span><span><span class="tag ${dev.syncStatus === 'Синхронизировано' ? 'ok' : (dev.syncStatus === 'Устройство офлайн' ? 'bad' : 'warn')}">${dev.syncStatus}</span></span></div>
+        <div class="detail-row"><span>Последняя синхр.</span><span>${dev.lastSync}</span></div>
+        <div class="detail-row"><span>Отложенные изменения</span><span>${dev.pendingChanges}</span></div>
+        <div class="detail-row"><span>Добавить</span><span>${dev.addCount} человек</span></div>
+        <div class="detail-row"><span>Удалить</span><span>${dev.delCount} человек</span></div>
+      </div>
+      <div style="padding:0 18px 18px"><button class="btn" style="width:100%;justify-content:center" onclick="syncNow()">${svg('refresh')}Синхронизировать сейчас</button></div>
+    </div>
+  </div>
+  <div class="panel" style="margin-top:16px">
+    <div class="panel-head"><div><h2>Информация об устройстве</h2></div></div>
+    <div class="formgrid" style="padding:16px 18px">
+      <div class="detail-row"><span>Тип устройства</span><span>${dev.type}</span></div>
+      <div class="detail-row"><span>Прошивка</span><span>${dev.firmware}</span></div>
+      <div class="detail-row"><span>Модель</span><span>${dev.model}</span></div>
+      <div class="detail-row"><span>IP-адрес</span><span class="mono">${dev.ip}</span></div>
+      <div class="detail-row"><span>Серийный номер</span><span class="mono">${dev.serial}</span></div>
+      <div class="detail-row"><span>Расположение</span><span>${dev.location || '—'}</span></div>
+    </div>
+    <div style="padding:0 18px 18px"><button class="btn outline" onclick="openAdvanced()">Дополнительные настройки</button></div>
+  </div>`;
+}
+
+function syncNow() { dev.status = 'Онлайн'; dev.lastSync = 'Только что'; dev.pendingChanges = 0; dev.addCount = 0; dev.delCount = 0; dev.syncStatus = 'Синхронизировано'; renderHead(); renderStats(); renderBody(); toast('Синхронизация запущена'); }
+function restartDevice() { toast(`«${dev.name}» перезагружается...`); }
+function deleteDeviceAndBack() {
+  const idx = DB.devices.findIndex(x => x.id === dev.id);
+  if (idx > -1) DB.devices.splice(idx, 1);
+  toast(`«${dev.name}» удалено`);
+  window.location.href = 'devices.html';
+}
+function openAdvanced() {
+  openModal('Дополнительные настройки', `
+    <div class="detail-list">
+      <div class="detail-row"><span>Контроллер онлайн</span><span>${dev.controllerOnline ? 'Да' : 'Нет'}</span></div>
+      <div class="detail-row"><span>Ёмкость БД</span><span>${dev.dbCapacity || '—'}</span></div>
+      <div class="detail-row"><span>Статус синхронизации</span><span>${dev.syncStatus}</span></div>
+    </div>`);
+  document.getElementById('modal-root').querySelector('.modal').insertAdjacentHTML('beforeend', modalFooter(`
+    <button class="btn outline" onclick="closeModal()">Закрыть</button>`));
+}
+
+const content = `<div id="head-slot"></div><div id="stats-slot" style="margin:16px 0"></div><div id="body-slot"></div>`;
+renderShell('devices', content);
+renderHead();
+renderStats();
+renderBody();
+</script>
+</body>
+</html>
